@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "ai.osone.app-release-4:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "ai.osone.app-main-5:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "ai.osone.app-release-4:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "ai.osone.app-main-5:/mipmap-hdpi/ic_launcher.png"
+    }
+]

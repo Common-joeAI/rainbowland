@@ -1,0 +1,7 @@
+#2022-01-01 05:00:00 UTC
+base.1=/app/osone-android/app/build/intermediates/dex/release/mergeDexRelease/classes2.dex
+path.1=classes2.dex
+base.0=/app/osone-android/app/build/intermediates/dex/release/mergeDexRelease/classes.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
+path.0=classes.dex

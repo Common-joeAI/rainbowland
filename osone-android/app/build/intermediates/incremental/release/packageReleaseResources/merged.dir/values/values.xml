@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OSONE</string>
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="colorPrimary">#7c6fff</item>
+        <item name="colorPrimaryDark">#0a0a0f</item>
+        <item name="colorAccent">#ff6b9d</item>
+        <item name="android:windowBackground">#0a0a0f</item>
+        <item name="android:statusBarColor">#0a0a0f</item>
+        <item name="android:navigationBarColor">#0a0a0f</item>
+    </style>
+</resources>
