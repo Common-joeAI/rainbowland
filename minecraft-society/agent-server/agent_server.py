@@ -71,6 +71,50 @@ NEED_DECAY = {
 NEED_CRISIS  = 0.25   # below this → desperate mood, halved productivity
 NEED_DEAD    = 0.0    # at zero → death
 
+# ── Innovation engine ─────────────────────────────────────────────────────────
+# Tech tree — each innovation unlocks new goods/markets/abilities
+# Format: id -> {name, requires, cost, researcher_role, unlocks_item, unlock_desc, base_price}
+TECH_TREE = {
+    # Tier 1 — basic crafting (no prerequisites)
+    "T1_forge":     {"name":"Iron Forge",      "requires":[],             "cost":200, "researcher":"builder",
+                     "unlocks":"iron_sword",    "desc":"Blacksmiths can craft weapons",         "buy":45,"sell":28},
+    "T1_mill":      {"name":"Grain Mill",       "requires":[],             "cost":150, "researcher":"farmer",
+                     "unlocks":"flour",         "desc":"Farmers produce flour from wheat",       "buy":6,"sell":3},
+    "T1_apoth":     {"name":"Apothecary",       "requires":[],             "cost":180, "researcher":"doctor",
+                     "unlocks":"herbal_remedy", "desc":"Doctors craft stronger remedies",        "buy":25,"sell":15},
+    "T1_press":     {"name":"Printing Press",   "requires":[],             "cost":220, "researcher":"librarian",
+                     "unlocks":"newspaper",     "desc":"Librarians publish daily news",          "buy":10,"sell":6},
+    "T1_bakery":    {"name":"Bakery",           "requires":["T1_mill"],    "cost":160, "researcher":"farmer",
+                     "unlocks":"pastry",        "desc":"Bakers produce luxury food",             "buy":18,"sell":11},
+
+    # Tier 2 — industrial
+    "T2_smelter":   {"name":"Smelter",          "requires":["T1_forge"],   "cost":350, "researcher":"builder",
+                     "unlocks":"steel_ingot",   "desc":"Builders smelt steel for construction",  "buy":60,"sell":40},
+    "T2_brewery":   {"name":"Brewery",          "requires":["T1_mill"],    "cost":280, "researcher":"merchant",
+                     "unlocks":"ale",           "desc":"Merchants brew and sell ale",            "buy":20,"sell":12},
+    "T2_hospital":  {"name":"Hospital",         "requires":["T1_apoth"],   "cost":400, "researcher":"doctor",
+                     "unlocks":"surgery_kit",   "desc":"Doctors perform surgeries, reduce death","buy":80,"sell":50},
+    "T2_academy":   {"name":"Academy",          "requires":["T1_press"],   "cost":380, "researcher":"librarian",
+                     "unlocks":"textbook",      "desc":"Education increases child role quality", "buy":35,"sell":20},
+    "T2_market":    {"name":"Grand Market",     "requires":["T1_forge"],   "cost":500, "researcher":"merchant",
+                     "unlocks":"exotic_goods",  "desc":"Merchants import rare goods",            "buy":120,"sell":75},
+
+    # Tier 3 — advanced society
+    "T3_enchant":   {"name":"Enchanting Table", "requires":["T2_smelter","T2_academy"],"cost":800,"researcher":"librarian",
+                     "unlocks":"enchanted_item","desc":"Librarians enchant tools for all roles", "buy":200,"sell":130},
+    "T3_citadel":   {"name":"Citadel",          "requires":["T2_smelter"], "cost":1000,"researcher":"builder",
+                     "unlocks":"fortification", "desc":"Guards can defend against raids",        "buy":0,"sell":0},
+    "T3_bank":      {"name":"Central Bank",     "requires":["T2_market"],  "cost":1200,"researcher":"banker",
+                     "unlocks":"treasury_bond", "desc":"Bankers issue bonds, grow treasury",    "buy":150,"sell":90},
+    "T3_alchemy":   {"name":"Alchemist Lab",    "requires":["T2_hospital","T3_enchant"],"cost":1500,"researcher":"doctor",
+                     "unlocks":"elixir",        "desc":"Doctors craft life-extending elixirs",  "buy":300,"sell":180},
+}
+
+# Innovation incentive — agent who triggers research gets a bonus
+RESEARCH_BONUS = 50   # Aurums paid to the researching agent
+INNOVATION_BONUS = 100  # Aurums bonus when research completes
+
+
 
 # Age in Minecraft days before a child becomes an adult
 CHILD_GROW_UP_DAYS = 3
@@ -292,6 +336,18 @@ def init_db():
             conn.commit()
         except Exception:
             pass  # column already exists
+    # Ensure innovations table exists (migration)
+    conn.execute("""CREATE TABLE IF NOT EXISTS innovations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, tech_id TEXT UNIQUE NOT NULL,
+        tech_name TEXT NOT NULL, status TEXT DEFAULT 'available',
+        researcher_id TEXT DEFAULT NULL, progress REAL DEFAULT 0.0,
+        started_tick INTEGER DEFAULT 0, unlocked_tick INTEGER DEFAULT NULL,
+        created_at REAL DEFAULT (strftime('%s','now')))""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS research_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, tech_id TEXT NOT NULL,
+        proposed_by TEXT DEFAULT 'system', votes INTEGER DEFAULT 1,
+        created_at REAL DEFAULT (strftime('%s','now')))""")
+    conn.commit()
 
     for item, p in BASE_PRICES.items():
         conn.execute("INSERT OR IGNORE INTO market (item,buy_price,sell_price) VALUES(?,?,?)",
@@ -1398,6 +1454,126 @@ async def fast_forward(req: FastForwardRequest):
             conn.execute("UPDATE agents SET balance=balance+? WHERE agent_id=?",
                          (day_sales, m["agent_id"]))
 
+        # ── Innovation engine ────────────────────────────────────────────────
+        # Each tick, active researchers make progress. Completed research
+        # unlocks a new market item and triggers an announcement.
+        # Auto-assign researchers if slots are empty and treasury can afford it.
+
+        unlocked_this_tick = []
+
+        # Advance active research
+        active = conn.execute(
+            "SELECT i.tech_id, i.researcher_id, i.progress, a.name r_name, a.role r_role "
+            "FROM innovations i LEFT JOIN agents a ON a.agent_id=i.researcher_id "
+            "WHERE i.status='researching' AND (a.is_dead IS NULL OR a.is_dead=0)"
+        ).fetchall()
+
+        for res in active:
+            tid      = res["tech_id"]
+            tech     = TECH_TREE.get(tid, {})
+            rid      = res["researcher_id"]
+            progress = res["progress"]
+
+            # Progress per tick = 0.1 base, faster if researcher has matching role
+            rate = 0.12 if res["r_role"] == tech.get("researcher") else 0.07
+            progress += rate
+
+            if progress >= 1.0:
+                # Research complete — unlock the item
+                item       = tech.get("unlocks")
+                buy_price  = tech.get("buy", 20)
+                sell_price = tech.get("sell", 12)
+
+                # Add to market if not already there
+                existing = conn.execute("SELECT item FROM market WHERE item=?", (item,)).fetchone()
+                if not existing and item:
+                    conn.execute(
+                        "INSERT INTO market (item, buy_price, sell_price, supply, demand) VALUES (?,?,?,30,20)",
+                        (item, buy_price, sell_price)
+                    )
+
+                conn.execute("""
+                    UPDATE innovations SET status='unlocked', progress=1.0,
+                    unlocked_tick=? WHERE tech_id=?
+                """, (current_tick, tid))
+
+                # Bonus to researcher
+                if rid:
+                    conn.execute("UPDATE agents SET balance=balance+? WHERE agent_id=?",
+                                 (INNOVATION_BONUS, rid))
+                    conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+                        (rid, "achievement",
+                         f"Day {current_tick}: I completed research on {tech['name']}! "
+                         f"Aethoria now has access to {item}. Earned {INNOVATION_BONUS}A bonus."))
+
+                unlocked_this_tick.append((tid, tech.get("name","?"), item, res["r_name"]))
+            else:
+                conn.execute("UPDATE innovations SET progress=? WHERE tech_id=?",
+                             (progress, tid))
+                # Pay researcher a small daily stipend from treasury
+                if rid and treas >= RESEARCH_BONUS * 0.3:
+                    treas -= RESEARCH_BONUS * 0.3
+                    conn.execute("UPDATE agents SET balance=balance+? WHERE agent_id=?",
+                                 (RESEARCH_BONUS * 0.3, rid))
+
+        # Auto-start new research from queue if slots available
+        active_count = conn.execute(
+            "SELECT COUNT(*) FROM innovations WHERE status='researching'"
+        ).fetchone()[0]
+
+        if active_count < 3 and treas >= 200:
+            # Pick next researchable tech from queue, or choose smartest available
+            queued = conn.execute(
+                "SELECT tech_id FROM research_queue ORDER BY votes DESC, id ASC LIMIT 1"
+            ).fetchone()
+
+            if queued:
+                next_tech = queued["tech_id"]
+                conn.execute("DELETE FROM research_queue WHERE tech_id=?", (next_tech,))
+            else:
+                # Auto-select: find available tech whose prerequisites are all unlocked
+                unlocked_ids = {r["tech_id"] for r in
+                    conn.execute("SELECT tech_id FROM innovations WHERE status='unlocked'").fetchall()}
+                candidates = [
+                    tid for tid, tech in TECH_TREE.items()
+                    if all(req in unlocked_ids for req in tech.get("requires", []))
+                    and not conn.execute(
+                        "SELECT 1 FROM innovations WHERE tech_id=? AND status IN ('researching','unlocked')",
+                        (tid,)
+                    ).fetchone()
+                ]
+                next_tech = _rng.choice(candidates) if candidates else None
+
+            if next_tech and next_tech in TECH_TREE:
+                tech = TECH_TREE[next_tech]
+                # Find an idle agent with the right role
+                researcher = conn.execute("""
+                    SELECT agent_id, name FROM agents
+                    WHERE role=? AND is_dead=0 AND is_child=0
+                    AND agent_id NOT IN (SELECT researcher_id FROM innovations WHERE status='researching')
+                    ORDER BY RANDOM() LIMIT 1
+                """, (tech["researcher"],)).fetchone()
+
+                if researcher and treas >= tech["cost"] * 0.5:
+                    treas -= tech["cost"] * 0.5  # upfront research cost
+                    conn.execute("""
+                        INSERT OR REPLACE INTO innovations
+                        (tech_id, tech_name, status, researcher_id, progress, started_tick)
+                        VALUES (?, ?, 'researching', ?, 0.0, ?)
+                    """, (next_tech, tech["name"], researcher["agent_id"], current_tick))
+
+                    conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+                        (researcher["agent_id"], "event",
+                         f"Day {current_tick}: Mayor assigned me to research {tech['name']}. "
+                         f"This could unlock {tech['unlocks']} for Aethoria!"))
+
+        # Announce unlocks
+        for tid, tname, item, r_name in unlocked_this_tick:
+            await mc_say(
+                f"[Innovation] {r_name} has completed research on {tname}! "
+                f"New market item unlocked: {item}. Aethoria advances!"
+            )
+
         # ── Tax income ───────────────────────────────────────────────────────
         pop_count  = conn.execute("SELECT COUNT(*) FROM agents WHERE is_child=0").fetchone()[0]
         worker_tax = conn.execute(
@@ -1503,3 +1679,167 @@ async def fast_forward(req: FastForwardRequest):
         )
 
     return summary
+
+
+# ── Innovation API endpoints ───────────────────────────────────────────────────
+
+@app.get("/society/innovations")
+async def get_innovations():
+    """Return tech tree status — what's unlocked, in progress, and available."""
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM innovations ORDER BY id").fetchall()
+    active_map = {r["tech_id"]: dict(r) for r in rows}
+    conn.close()
+
+    unlocked_ids = {tid for tid, d in active_map.items() if d["status"] == "unlocked"}
+
+    result = []
+    for tid, tech in TECH_TREE.items():
+        entry = active_map.get(tid, {})
+        prereqs_met = all(r in unlocked_ids for r in tech.get("requires", []))
+        result.append({
+            "tech_id":      tid,
+            "name":         tech["name"],
+            "description":  tech["desc"],
+            "researcher_role": tech["researcher"],
+            "cost":         tech["cost"],
+            "requires":     tech.get("requires", []),
+            "unlocks_item": tech.get("unlocks"),
+            "status":       entry.get("status", "locked" if not prereqs_met else "available"),
+            "progress":     round(entry.get("progress", 0.0) * 100),
+            "researcher_id":entry.get("researcher_id"),
+            "unlocked_tick":entry.get("unlocked_tick"),
+        })
+
+    # Group by tier
+    tier1 = [r for r in result if r["tech_id"].startswith("T1")]
+    tier2 = [r for r in result if r["tech_id"].startswith("T2")]
+    tier3 = [r for r in result if r["tech_id"].startswith("T3")]
+
+    unlocked_items = list(unlocked_ids)
+    return {
+        "total_unlocked": len(unlocked_ids),
+        "total_available": len([r for r in result if r["status"] == "available"]),
+        "in_research": len([r for r in result if r["status"] == "researching"]),
+        "tier1": tier1, "tier2": tier2, "tier3": tier3,
+        "unlocked_item_ids": unlocked_items,
+    }
+
+
+class ResearchRequest(BaseModel):
+    tech_id: str
+    proposed_by: str = "player"
+
+@app.post("/society/research/propose")
+async def propose_research(req: ResearchRequest):
+    """Add a tech to the research queue. It will be picked up on the next tick."""
+    if req.tech_id not in TECH_TREE:
+        return {"error": f"Unknown tech_id: {req.tech_id}"}
+
+    conn = get_db()
+    # Check prerequisites
+    unlocked = {r["tech_id"] for r in
+        conn.execute("SELECT tech_id FROM innovations WHERE status='unlocked'").fetchall()}
+    tech = TECH_TREE[req.tech_id]
+    missing = [r for r in tech.get("requires", []) if r not in unlocked]
+    if missing:
+        conn.close()
+        return {"error": f"Prerequisites not met: {missing}"}
+
+    already = conn.execute(
+        "SELECT status FROM innovations WHERE tech_id=?", (req.tech_id,)
+    ).fetchone()
+    if already and already["status"] in ("researching", "unlocked"):
+        conn.close()
+        return {"error": f"{req.tech_id} is already {already['status']}"}
+
+    # Upsert into queue (increment votes if already queued)
+    existing = conn.execute(
+        "SELECT id, votes FROM research_queue WHERE tech_id=?", (req.tech_id,)
+    ).fetchone()
+    if existing:
+        conn.execute("UPDATE research_queue SET votes=votes+1 WHERE tech_id=?", (req.tech_id,))
+    else:
+        conn.execute(
+            "INSERT INTO research_queue (tech_id, proposed_by, votes) VALUES (?,?,1)",
+            (req.tech_id, req.proposed_by)
+        )
+    treas = get_treasury()
+    conn.commit(); conn.close()
+
+    return {
+        "ok": True,
+        "tech_id": req.tech_id,
+        "tech_name": tech["name"],
+        "unlocks": tech["unlocks"],
+        "message": f"'{tech['name']}' added to research queue. Will begin on next tick if treasury ({treas:.0f}A) allows."
+    }
+
+
+@app.post("/society/research/start")
+async def start_research_now(req: ResearchRequest):
+    """Immediately start research on a tech (bypasses queue — costs treasury)."""
+    if req.tech_id not in TECH_TREE:
+        return {"error": f"Unknown tech: {req.tech_id}"}
+
+    tech = TECH_TREE[req.tech_id]
+    conn = get_db()
+
+    unlocked = {r["tech_id"] for r in
+        conn.execute("SELECT tech_id FROM innovations WHERE status='unlocked'").fetchall()}
+    missing = [r for r in tech.get("requires", []) if r not in unlocked]
+    if missing:
+        conn.close()
+        return {"error": f"Prerequisites not met: {missing}"}
+
+    treas = get_treasury()
+    if treas < tech["cost"] * 0.5:  # only need 50% upfront
+        conn.close()
+        return {"error": f"Not enough treasury ({treas:.0f}A) — need {tech['cost']*0.5:.0f}A upfront"}
+
+    # Find researcher
+    researcher = conn.execute("""
+        SELECT agent_id, name FROM agents
+        WHERE role=? AND is_dead=0 AND is_child=0
+        AND agent_id NOT IN (SELECT researcher_id FROM innovations WHERE status='researching')
+        ORDER BY balance DESC LIMIT 1
+    """, (tech["researcher"],)).fetchone()
+
+    if not researcher:
+        conn.close()
+        return {"error": f"No available {tech['researcher']} to do the research"}
+
+    set_treasury(treas - tech["cost"] * 0.5)  # 50% upfront, rest on completion
+    cur_tick = get_current_tick()
+    conn.execute("""
+        INSERT OR REPLACE INTO innovations
+        (tech_id, tech_name, status, researcher_id, progress, started_tick)
+        VALUES (?, ?, 'researching', ?, 0.0, ?)
+    """, (req.tech_id, tech["name"], researcher["agent_id"], cur_tick))
+    conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+        (researcher["agent_id"], "event",
+         f"Assigned to research {tech['name']} — this could change Aethoria forever!"))
+    conn.commit(); conn.close()
+
+    return {
+        "ok": True,
+        "tech_id":   req.tech_id,
+        "tech_name": tech["name"],
+        "researcher":researcher["name"],
+        "unlocks":   tech["unlocks"],
+        "cost_paid": tech["cost"],
+        "eta_days":  int(1.0 / 0.12) + 1,
+        "message":   f"{researcher['name']} begins researching {tech['name']}. ETA ~{int(1.0/0.12)+1} days."
+    }
+
+
+@app.get("/society/market/new")
+async def get_new_market_items():
+    """Return all items that were unlocked via innovation (not in BASE_PRICES)."""
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM market").fetchall()
+    conn.close()
+    base_keys = set(BASE_PRICES.keys())
+    new_items = [dict(r) for r in rows if r["item"] not in base_keys]
+    return {"new_items": new_items, "total_new": len(new_items)}
+
