@@ -146,7 +146,9 @@ async def mc_summon_villager(x: float, y: float, z: float, name: str, role: str)
 
 # ── Database ──────────────────────────────────────────────────────────────────
 def get_db():
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -290,19 +292,21 @@ def get_agent_balance(agent_id: str) -> float:
     conn = get_db(); r = conn.execute("SELECT balance FROM agents WHERE agent_id=?", (agent_id,)).fetchone(); conn.close()
     return r["balance"] if r else 0.0
 
-def adjust_agent_balance(agent_id: str, delta: float):
-    conn = get_db()
+def adjust_agent_balance(agent_id: str, delta: float, conn=None):
+    own = conn is None
+    if own: conn = get_db()
     conn.execute("UPDATE agents SET balance=MAX(0,balance+?) WHERE agent_id=?", (delta, agent_id))
-    conn.commit(); conn.close()
+    if own: conn.commit(); conn.close()
 
-def add_memory(agent_id: str, etype: str, value: str, key: str = None):
-    conn = get_db()
+def add_memory(agent_id: str, etype: str, value: str, key: str = None, conn=None):
+    own = conn is None
+    if own: conn = get_db()
     conn.execute("INSERT INTO agent_memory (agent_id,entry_type,key,value) VALUES(?,?,?,?)",
                  (agent_id, etype, key, value))
     conn.execute("""DELETE FROM agent_memory WHERE agent_id=? AND id NOT IN
         (SELECT id FROM agent_memory WHERE agent_id=? ORDER BY ts DESC LIMIT 60)""",
                  (agent_id, agent_id))
-    conn.commit(); conn.close()
+    if own: conn.commit(); conn.close()
 
 def get_memories(agent_id: str, n: int = 8) -> list:
     conn = get_db()
@@ -388,136 +392,142 @@ def pick_role_from_traits(traits: dict) -> str:
     return max(scores, key=scores.get)
 
 async def spawn_child(parent1_id: str, parent2_id: str) -> Optional[dict]:
-    """Create a new child agent from two parents."""
+    """Create a new child agent from two parents — single DB connection throughout."""
     conn = get_db()
-    p1 = conn.execute("SELECT * FROM agents WHERE agent_id=?", (parent1_id,)).fetchone()
-    p2 = conn.execute("SELECT * FROM agents WHERE agent_id=?", (parent2_id,)).fetchone()
-    conn.close()
-    if not p1 or not p2:
-        return None
+    try:
+        p1 = conn.execute("SELECT * FROM agents WHERE agent_id=?", (parent1_id,)).fetchone()
+        p2 = conn.execute("SELECT * FROM agents WHERE agent_id=?", (parent2_id,)).fetchone()
+        if not p1 or not p2:
+            return None
 
-    # Check parents can afford it
-    p1_bal = get_agent_balance(parent1_id)
-    p2_bal = get_agent_balance(parent2_id)
-    if p1_bal < CHILD_COST / 2 or p2_bal < CHILD_COST / 2:
-        return None
+        p1_bal = p1["balance"] or 0.0
+        p2_bal = p2["balance"] or 0.0
+        if p1_bal < CHILD_COST / 2 or p2_bal < CHILD_COST / 2:
+            return None
 
-    # Deduct cost
-    adjust_agent_balance(parent1_id, -(CHILD_COST / 2))
-    adjust_agent_balance(parent2_id, -(CHILD_COST / 2))
+        # Deduct cost
+        conn.execute("UPDATE agents SET balance=MAX(0,balance-?) WHERE agent_id=?",
+                     (CHILD_COST/2, parent1_id))
+        conn.execute("UPDATE agents SET balance=MAX(0,balance-?) WHERE agent_id=?",
+                     (CHILD_COST/2, parent2_id))
 
-    # Generate child
-    import uuid
-    child_id   = str(uuid.uuid4())[:8]
-    t1 = json.loads(p1["traits"] or "{}")
-    t2 = json.loads(p2["traits"] or "{}")
-    child_traits = blend_traits(t1, t2)
+        # Generate child
+        import uuid as _uuid
+        child_id     = str(_uuid.uuid4())[:8]
+        t1           = json.loads(p1["traits"] or "{}")
+        t2           = json.loads(p2["traits"] or "{}")
+        child_traits = blend_traits(t1, t2)
 
-    # Name — alternate male/female randomly
-    name_pool = CHILD_NAMES_FEMALE if random.random() > 0.5 else CHILD_NAMES_MALE
-    # Avoid duplicate names
-    conn = get_db()
-    existing_names = {r["name"] for r in conn.execute("SELECT name FROM agents").fetchall()}
-    conn.close()
-    available = [n for n in name_pool if n not in existing_names]
-    child_name = random.choice(available) if available else f"Child_{child_id[:4]}"
+        name_pool = CHILD_NAMES_FEMALE if random.random() > 0.5 else CHILD_NAMES_MALE
+        existing  = {r["name"] for r in conn.execute("SELECT name FROM agents").fetchall()}
+        available = [n for n in name_pool if n not in existing]
+        child_name = random.choice(available) if available else f"Child_{child_id[:4]}"
 
-    # Spawn near parents
-    cx = (p1["x"] + p2["x"]) / 2 + random.uniform(-2, 2)
-    cz = (p1["z"] + p2["z"]) / 2 + random.uniform(-2, 2)
+        cx  = (p1["x"] + p2["x"]) / 2 + random.uniform(-2, 2)
+        cz  = (p1["z"] + p2["z"]) / 2 + random.uniform(-2, 2)
+        gen = max(p1["generation"] or 1, p2["generation"] or 1) + 1
 
-    # Determine generation
-    gen = max(p1["generation"] or 1, p2["generation"] or 1) + 1
+        child_goal = (
+            f"Grow up as the child of {p1['name']} and {p2['name']}. "
+            f"Learn about the world and find my role in Aethoria."
+        )
 
-    # Surname from one parent
-    p1_name = p1["name"]; p2_name = p2["name"]
-    child_goal = (
-        f"Grow up as the child of {p1_name} and {p2_name}. "
-        f"Learn about the world, discover my talents, and find my role in Aethoria."
-    )
+        # Current tick
+        tick_row = conn.execute("SELECT tick_number FROM society_tick ORDER BY id DESC LIMIT 1").fetchone()
+        cur_tick = tick_row["tick_number"] if tick_row else 0
 
-    conn = get_db()
-    conn.execute("""
-        INSERT INTO agents (agent_id, name, role, goal, traits, balance,
-            parent1_id, parent2_id, generation, is_child, birth_tick, x, y, z)
-        VALUES (?,?,?,?,?,?,?,?,?,1,?,?,64,?)
-    """, (child_id, child_name, "child", child_goal,
-          json.dumps(child_traits), 50.0,
-          parent1_id, parent2_id, gen, get_current_tick(),
-          cx, cz))
-    # Record partnership
-    conn.execute("UPDATE agents SET partner_id=? WHERE agent_id=?", (parent2_id, parent1_id))
-    conn.execute("UPDATE agents SET partner_id=? WHERE agent_id=?", (parent1_id, parent2_id))
-    conn.commit(); conn.close()
+        conn.execute("""
+            INSERT INTO agents (agent_id,name,role,goal,traits,balance,
+                parent1_id,parent2_id,generation,is_child,birth_tick,x,y,z)
+            VALUES (?,?,?,?,?,50.0,?,?,?,1,?,?,64,?)""",
+            (child_id, child_name, "child", child_goal,
+             json.dumps(child_traits), parent1_id, parent2_id, gen, cur_tick, cx, cz))
 
+        conn.execute("UPDATE agents SET partner_id=? WHERE agent_id=?", (parent2_id, parent1_id))
+        conn.execute("UPDATE agents SET partner_id=? WHERE agent_id=?", (parent1_id, parent2_id))
+
+        # Relationships
+        for a, b in [(parent1_id,child_id),(parent2_id,child_id),(child_id,parent1_id),(child_id,parent2_id)]:
+            conn.execute("""INSERT INTO relationships (agent_a,agent_b,type,strength)
+                VALUES(?,?,'family',0.9)
+                ON CONFLICT(agent_a,agent_b) DO UPDATE SET type='family',strength=0.9""", (a, b))
+
+        # Memories
+        conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+                     (child_id, "event", f"I was born to {p1['name']} and {p2['name']}. Gen {gen}."))
+        conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+                     (parent1_id, "event", f"My child {child_name} was born! Gen {gen}."))
+        conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+                     (parent2_id, "event", f"My child {child_name} was born! Gen {gen}."))
+        conn.commit()
+
+    finally:
+        conn.close()
+
+    # In-memory cache
     agents[child_id] = {
         "name": child_name, "role": "child", "goal": child_goal,
         "traits": child_traits, "history": [], "mood": "curious",
         "x": cx, "y": 64, "z": cz,
-        "parent1": p1_name, "parent2": p2_name, "generation": gen,
-        "is_child": True, "birth_tick": get_current_tick(),
+        "parent1": p1["name"], "parent2": p2["name"],
+        "generation": gen, "is_child": True, "birth_tick": cur_tick,
     }
 
-    add_memory(child_id, "event", f"I was born to {p1_name} ({p1['role']}) and {p2_name} ({p2['role']}). Gen {gen}.")
-    add_memory(parent1_id, "event", f"My child {child_name} was born! Gen {gen}. Cost: {CHILD_COST//2}A.")
-    add_memory(parent2_id, "event", f"My child {child_name} was born! Gen {gen}. Cost: {CHILD_COST//2}A.")
-
-    update_relationship(parent1_id, child_id, "family", 0.9)
-    update_relationship(parent2_id, child_id, "family", 0.9)
-    update_relationship(child_id, parent1_id, "family", 0.9)
-    update_relationship(child_id, parent2_id, "family", 0.9)
-
-    # Summon in Minecraft
+    # Announce in Minecraft
     await mc_summon_villager(cx, 64, cz, child_name, "child")
     await mc_say(
-        f"[Society] {child_name} has been born — child of {p1_name} and {p2_name}! "
-        f"Generation {gen}. Aethoria grows!"
+        f"[Society] {child_name} has been born — child of {p1['name']} & {p2['name']}! "
+        f"Generation {gen}. Population: {len(agents)}."
     )
 
-    log.info(f"Child born: {child_name} [{child_id}] gen={gen} parents={p1_name}+{p2_name}")
+    log.info(f"Child born: {child_name} [{child_id}] gen={gen}")
     return {"child_id": child_id, "name": child_name, "generation": gen, "traits": child_traits}
 
-async def grow_up(agent_id: str):
+
+async def grow_up(agent_id: str, conn=None):
     """A child becomes an adult — assign role based on traits."""
-    conn = get_db()
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db()
+
     row = conn.execute("SELECT * FROM agents WHERE agent_id=?", (agent_id,)).fetchone()
-    conn.close()
     if not row or not row["is_child"]:
+        if own_conn: conn.close()
         return
 
-    traits = json.loads(row["traits"] or "{}")
+    traits     = json.loads(row["traits"] or "{}")
     adult_role = pick_role_from_traits(traits)
-    parent1_name = ""
-    parent2_name = ""
-    if row["parent1_id"]:
-        p = get_db().execute("SELECT name FROM agents WHERE agent_id=?", (row["parent1_id"],)).fetchone()
-        if p: parent1_name = p["name"]
-    if row["parent2_id"]:
-        p = get_db().execute("SELECT name FROM agents WHERE agent_id=?", (row["parent2_id"],)).fetchone()
-        if p: parent2_name = p["name"]
 
-    new_goal = f"I've grown up as a {adult_role}. Forge my own path and make my family proud."
-    conn = get_db()
+    p1_name, p2_name = "", ""
+    if row["parent1_id"]:
+        p = conn.execute("SELECT name FROM agents WHERE agent_id=?", (row["parent1_id"],)).fetchone()
+        if p: p1_name = p["name"]
+    if row["parent2_id"]:
+        p = conn.execute("SELECT name FROM agents WHERE agent_id=?", (row["parent2_id"],)).fetchone()
+        if p: p2_name = p["name"]
+
+    new_goal = f"I grew up as a {adult_role}. Forge my own path and make my family proud."
     conn.execute("UPDATE agents SET role=?, is_child=0, goal=?, balance=200.0 WHERE agent_id=?",
                  (adult_role, new_goal, agent_id))
-    conn.commit(); conn.close()
+    conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+                 (agent_id, "event",
+                  f"Grew up and became a {adult_role}. "
+                  f"Top traits: {', '.join(f'{k}={v:.2f}' for k,v in sorted(traits.items(),key=lambda x:-x[1])[:3])}."))
+    if own_conn:
+        conn.commit(); conn.close()
 
     if agent_id in agents:
         agents[agent_id]["role"]     = adult_role
         agents[agent_id]["is_child"] = False
         agents[agent_id]["goal"]     = new_goal
 
-    add_memory(agent_id, "event",
-        f"I grew up and became a {adult_role}. "
-        f"My dominant traits are: {', '.join(f'{k}={v:.2f}' for k,v in sorted(traits.items(), key=lambda x:-x[1])[:3])}."
-    )
-
     await mc_say(
         f"[Society] {row['name']} has grown up and become Aethoria's newest {adult_role}! "
-        f"(Son/daughter of {parent1_name} & {parent2_name}, Gen {row['generation']})"
+        f"(child of {p1_name} & {p2_name}, Gen {row['generation']})"
     )
     await mc_speak_as(row["name"], adult_role,
-        f"I'm ready to take my place in Aethoria as a {adult_role}. Watch out, world.")
+        f"I'm ready to take my place in Aethoria as a {adult_role}.")
+
 
 # ── Role prompts ──────────────────────────────────────────────────────────────
 ROLE_PROMPTS = {
@@ -1010,3 +1020,204 @@ async def startup():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
+
+
+# ── Fast-forward / time acceleration ─────────────────────────────────────────
+class FastForwardRequest(BaseModel):
+    ticks: int = 7          # How many society days to simulate
+    mc_day_speed: int = 20  # Minecraft daylight speed multiplier (1=normal, 20=fast, 0=freeze)
+    announce: bool = True   # Broadcast to players
+
+@app.post("/society/fast_forward")
+async def fast_forward(req: FastForwardRequest):
+    """
+    Run multiple society ticks in rapid succession.
+    Also sets Minecraft's daylight cycle speed via RCON gamerule.
+    Each tick = one society 'day':
+      - wages paid, upkeep charged
+      - market prices fluctuate
+      - loan interest accrues
+      - children age up if ready
+      - agents with no money get demoted
+    """
+    ticks   = max(1, min(req.ticks, 365))   # Cap at 1 year
+    results = []
+    total_demotions  = 0
+    total_grown_up   = 0
+    total_wages_paid = 0
+    start_treasury   = get_treasury()
+
+    # Set Minecraft day speed
+    if req.mc_day_speed == 0:
+        # Freeze time at noon
+        await rcon_send("gamerule doDaylightCycle false")
+        await rcon_send("time set noon")
+    else:
+        await rcon_send("gamerule doDaylightCycle true")
+        # Vanilla doesn't have a speed gamerule natively, but we can
+        # simulate by rapidly advancing time each tick
+        await rcon_send(f"gamerule randomTickSpeed {max(1, req.mc_day_speed * 3)}")
+
+    if req.announce:
+        await mc_say(
+            f"[Time] Fast-forwarding {ticks} day(s)... "
+            f"({'x'+str(req.mc_day_speed)+' speed' if req.mc_day_speed > 1 else 'normal'})"
+        )
+
+    for i in range(ticks):
+        # Advance Minecraft time by one full day (24000 ticks)
+        if req.mc_day_speed > 0:
+            await rcon_send(f"time add 24000")
+
+        # Run economy tick (reuse the existing logic inline)
+        import random as _rng
+        treas = get_treasury()
+        conn  = get_db()
+        rows  = conn.execute("SELECT * FROM agents").fetchall()
+        current_tick = get_current_tick() + 1
+        day_result   = {"tick": current_tick, "wages": 0, "demotions": 0, "grown_up": 0}
+
+        for row in rows:
+            aid    = row["agent_id"]
+            role   = row["role"]
+            wage   = ROLE_WAGES.get(role, 0)
+            upkeep = ROLE_UPKEEP.get(role, 0)
+            bal    = row["balance"] or 0.0
+
+            if wage > 0:
+                if treas >= wage:
+                    treas -= wage
+                    bal += wage
+                    conn.execute("UPDATE agents SET balance=MAX(0,balance+?) WHERE agent_id=?", (wage, aid))
+                    day_result["wages"] += 1
+                else:
+                    add_memory(aid, "event", f"Day {current_tick}: no wages — treasury empty!", conn=conn)
+
+            if upkeep > 0:
+                if bal >= upkeep:
+                    bal -= upkeep
+                    conn.execute("UPDATE agents SET balance=MAX(0,balance-?) WHERE agent_id=?", (upkeep, aid))
+                elif role not in ("citizen", "child"):
+                    conn.execute("UPDATE agents SET role='citizen' WHERE agent_id=?", (aid,))
+                    add_memory(aid, "event",
+                        f"Day {current_tick}: demoted from {role} to citizen.", conn=conn)
+                    day_result["demotions"] += 1
+                    if aid in agents:
+                        agents[aid]["role"] = "citizen"
+
+            # Age children
+            if row["is_child"]:
+                ticks_alive = current_tick - (row["birth_tick"] or 0)
+                if ticks_alive >= CHILD_GROW_UP_DAYS:
+                    await grow_up(aid, conn=conn)
+                    day_result["grown_up"] += 1
+
+        # Loan interest
+        conn.execute("UPDATE player_accounts SET loan=ROUND(loan*1.01,2) WHERE loan>0")
+
+        # Market fluctuation
+        for item in BASE_PRICES:
+            sd = _rng.randint(-5, 5)
+            dd = _rng.randint(-3, 7)
+            conn.execute("""
+                UPDATE market SET
+                    supply=MAX(1,supply+?), demand=MAX(1,demand+?),
+                    buy_price=MAX(1,ROUND(buy_price*(1.0+(?*0.01-?*0.005)),2)),
+                    sell_price=MAX(1,ROUND(sell_price*(1.0+(?*0.01-?*0.005)),2))
+                WHERE item=?
+            """, (sd, dd, dd, sd, dd, sd, item))
+
+        # Auto-partnership formation — agents with high relationship strength become partners
+        strong_pairs = conn.execute("""
+            SELECT r.agent_a, r.agent_b, a1.name n1, a2.name n2,
+                   a1.role r1, a2.role r2, a1.balance b1, a2.balance b2,
+                   a1.partner_id p1, a2.partner_id p2
+            FROM relationships r
+            JOIN agents a1 ON a1.agent_id=r.agent_a
+            JOIN agents a2 ON a2.agent_id=r.agent_b
+            WHERE r.type='friend' AND r.strength>0.75
+              AND a1.partner_id IS NULL AND a2.partner_id IS NULL
+              AND a1.is_child=0 AND a2.is_child=0
+            LIMIT 3
+        """).fetchall()
+        for pair in strong_pairs:
+            conn.execute("UPDATE agents SET partner_id=? WHERE agent_id=?",
+                         (pair["agent_b"], pair["agent_a"]))
+            conn.execute("UPDATE agents SET partner_id=? WHERE agent_id=?",
+                         (pair["agent_a"], pair["agent_b"]))
+            update_relationship(pair["agent_a"], pair["agent_b"], "partner", 0.1)
+            if req.announce and i == ticks - 1:  # only announce on last tick
+                await mc_say(
+                    f"[Society] {pair['n1']} and {pair['n2']} have become partners!"
+                )
+
+        # Auto-reproduction — partners with high balance and strong bond have children
+        couples = conn.execute("""
+            SELECT a.agent_id id1, a.name n1, a.partner_id id2, b.name n2,
+                   a.balance b1, b.balance b2
+            FROM agents a
+            JOIN agents b ON b.agent_id=a.partner_id
+            WHERE a.agent_id < a.partner_id   -- avoid duplicate pairs
+              AND a.balance  >= ?
+              AND b.balance  >= ?
+              AND a.is_child = 0 AND b.is_child = 0
+        """, (CHILD_COST/2 + 50, CHILD_COST/2 + 50)).fetchall()
+
+        for couple in couples:
+            # 30% chance per day of having a child (if no child recently born)
+            recent_child = conn.execute("""
+                SELECT COUNT(*) as c FROM agents
+                WHERE (parent1_id=? OR parent2_id=?)
+                  AND is_child=1
+            """, (couple["id1"], couple["id1"])).fetchone()["c"]
+            if recent_child == 0 and _rng.random() < 0.30:
+                conn.commit()
+                conn.close()
+                await spawn_child(couple["id1"], couple["id2"])
+                # Reopen conn for rest of tick
+                conn = get_db()
+                conn.execute("PRAGMA journal_mode=WAL")
+
+        conn.execute("INSERT INTO society_tick (tick_number) VALUES(?)", (current_tick,))
+        conn.execute("UPDATE treasury SET balance=?,updated_at=strftime('%s','now') WHERE id=1",
+                     (max(0, treas),))
+        conn.commit()
+        conn.close()
+
+        total_demotions  += day_result["demotions"]
+        total_grown_up   += day_result["grown_up"]
+        total_wages_paid += day_result["wages"]
+        results.append(day_result)
+
+    end_treasury = get_treasury()
+
+    # Final population count
+    conn = get_db()
+    pop       = conn.execute("SELECT COUNT(*) as c FROM agents").fetchone()["c"]
+    children  = conn.execute("SELECT COUNT(*) as c FROM agents WHERE is_child=1").fetchone()["c"]
+    gen_max   = conn.execute("SELECT MAX(generation) as g FROM agents").fetchone()["g"] or 1
+    families  = conn.execute("SELECT COUNT(*) as c FROM agents WHERE partner_id IS NOT NULL").fetchone()["c"]
+    conn.close()
+
+    summary = {
+        "ticks_run":       ticks,
+        "treasury_start":  start_treasury,
+        "treasury_end":    end_treasury,
+        "treasury_delta":  end_treasury - start_treasury,
+        "total_wages":     total_wages_paid,
+        "total_demotions": total_demotions,
+        "children_grown":  total_grown_up,
+        "population":      pop,
+        "children_alive":  children,
+        "max_generation":  gen_max,
+        "couples":         families // 2,
+    }
+
+    if req.announce:
+        await mc_say(
+            f"[Time] {ticks} days passed. Pop: {pop} (+{pop-25} born). "
+            f"Treasury: {end_treasury:.0f}A. Gen {gen_max}. "
+            f"Demotions: {total_demotions}."
+        )
+
+    return summary
