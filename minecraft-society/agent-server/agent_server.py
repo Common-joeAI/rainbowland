@@ -856,9 +856,13 @@ async def grow_up_endpoint(req: GrowUpRequest):
 async def society_tick(req: SocietyTickRequest):
     results = {"wages_paid": 0, "upkeep_charged": 0, "demotions": 0, "grown_up": 0}
     treas   = get_treasury()
+    
+    # Get data first
     conn    = get_db()
     rows    = conn.execute("SELECT * FROM agents").fetchall()
+    rows = [dict(r) for r in rows]  # Convert to dicts before closing
     current_tick = get_current_tick() + 1
+    conn.close()
 
     for row in rows:
         aid  = row["agent_id"]
@@ -882,20 +886,27 @@ async def society_tick(req: SocietyTickRequest):
                 adjust_agent_balance(aid, -upkeep)
                 results["upkeep_charged"] += 1
             elif role not in ("citizen", "child"):
+                conn = get_db()
                 conn.execute("UPDATE agents SET role='citizen' WHERE agent_id=?", (aid,))
+                conn.commit()
+                conn.close()
                 add_memory(aid, "event", f"Demoted from {role} to citizen — couldn't afford {upkeep}A upkeep.")
                 results["demotions"] += 1
                 if aid in agents: agents[aid]["role"] = "citizen"
 
         # Grow up children
-        if row["is_child"]:
-            ticks_alive = current_tick - (row["birth_tick"] or 0)
+        if row.get("is_child"):
+            ticks_alive = current_tick - (row.get("birth_tick") or 0)
             if ticks_alive >= CHILD_GROW_UP_DAYS:
                 await grow_up(aid)
                 results["grown_up"] += 1
 
+    # Now update treasury and market in a single transaction
+    conn = get_db()
+    
     # Loan interest on players
     conn.execute("UPDATE player_accounts SET loan=loan*1.01 WHERE loan>0")
+    
     # Market fluctuation
     for item in BASE_PRICES:
         sd = random.randint(-5, 5)
@@ -908,10 +919,11 @@ async def society_tick(req: SocietyTickRequest):
             WHERE item=?
         """, (sd, dd, dd, sd, dd, sd, item))
 
-    # Update tick counter
+    # Update treasury and tick counter
+    conn.execute("UPDATE treasury SET balance=?,updated_at=strftime('%s','now') WHERE id=1", (max(0, treas),))
     conn.execute("INSERT INTO society_tick (tick_number) VALUES(?)", (current_tick,))
-    set_treasury(treas)
-    conn.commit(); conn.close()
+    conn.commit()
+    conn.close()
 
     if treas < 500:
         await mc_say(f"[CRISIS] Treasury critical: {treas:.0f} Aurums! Mayor must act!")
