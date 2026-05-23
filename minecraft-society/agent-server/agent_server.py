@@ -1117,32 +1117,115 @@ async def fast_forward(req: FastForwardRequest):
         # Loan interest
         conn.execute("UPDATE player_accounts SET loan=ROUND(loan*1.01,2) WHERE loan>0")
 
-        # Market fluctuation
-        for item in BASE_PRICES:
+        # Market fluctuation — supply/demand drift capped at 3x base price
+        for item, base in BASE_PRICES.items():
             sd = _rng.randint(-5, 5)
             dd = _rng.randint(-3, 7)
+            max_buy  = base["buy"]  * 3.0
+            max_sell = base["sell"] * 3.0
+            min_buy  = base["buy"]  * 0.4
+            min_sell = base["sell"] * 0.4
             conn.execute("""
                 UPDATE market SET
-                    supply=MAX(1,supply+?), demand=MAX(1,demand+?),
-                    buy_price=MAX(1,ROUND(buy_price*(1.0+(?*0.01-?*0.005)),2)),
-                    sell_price=MAX(1,ROUND(sell_price*(1.0+(?*0.01-?*0.005)),2))
+                    supply=MAX(1, MIN(500, supply+?)),
+                    demand=MAX(1, MIN(200, demand+?)),
+                    buy_price=MAX(?,  MIN(?, ROUND(buy_price*(1.0+(?*0.01-?*0.005)),2))),
+                    sell_price=MAX(?, MIN(?, ROUND(sell_price*(1.0+(?*0.01-?*0.005)),2)))
                 WHERE item=?
-            """, (sd, dd, dd, sd, dd, sd, item))
+            """, (sd, dd,
+                  min_buy, max_buy, dd, sd,
+                  min_sell, max_sell, dd, sd,
+                  item))
 
-        # ── Tax income — economy stays solvent ──────────────────────────────
-        # Each working (non-citizen, non-child) agent contributes income tax
-        # Farmers/merchants also generate trade revenue into the treasury
+        # ── Production system ────────────────────────────────────────────────
+        # Each role produces goods into the market supply each day.
+        # Merchants earn income by selling those goods (supply -> merchant balance).
+        # This creates a real supply chain: producers -> market -> merchants -> economy.
+
+        producers = conn.execute("""
+            SELECT role, COUNT(*) as cnt, AVG(balance) as avg_bal
+            FROM agents WHERE is_child=0
+            GROUP BY role
+        """).fetchall()
+
+        PRODUCTION = {
+            # role:       {item: qty_per_agent_per_day}
+            "farmer":     {"wheat": 8, "bread": 5, "seeds": 4, "food_ration": 6},
+            "builder":    {"wood": 10, "stone": 8, "materials": 5},
+            "doctor":     {"medicine": 3, "parchment": 2},
+            "librarian":  {"book": 4, "parchment": 5},
+            "banker":     {"emerald": 1},                  # banker generates credit/value
+            "guard":      {},                              # guards consume, don't produce
+            "judge":      {"parchment": 2},
+            "mayor":      {},
+            "citizen":    {"labor": 2},                    # citizens sell their labor
+            "child":      {},
+        }
+
+        SELL_PRICES = {
+            # what producers earn per unit when restocking market
+            "wheat": 2, "bread": 5, "seeds": 3, "food_ration": 7,
+            "wood": 2, "stone": 1, "materials": 18,
+            "medicine": 20, "book": 8, "parchment": 4,
+            "emerald": 20, "labor": 12,
+        }
+
+        for prod in producers:
+            role      = prod["role"]
+            count     = prod["cnt"]
+            avg_bal   = prod["avg_bal"] or 0.0
+            items     = PRODUCTION.get(role, {})
+
+            for item, qty_each in items.items():
+                total_qty = qty_each * count
+                earn_each = SELL_PRICES.get(item, 1) * qty_each
+
+                # Agents with low balance produce less (stressed workers)
+                if avg_bal < 80:
+                    total_qty = max(1, int(total_qty * 0.5))
+                    earn_each = earn_each * 0.5
+
+                # Add supply to market
+                conn.execute("UPDATE market SET supply=MIN(500, supply+?) WHERE item=?",
+                             (total_qty, item))
+
+                # Pay producers directly from market revenue
+                # Split earnings among all agents of that role
+                if count > 0 and earn_each > 0:
+                    conn.execute("""
+                        UPDATE agents SET balance=balance+?
+                        WHERE role=? AND is_child=0
+                    """, (earn_each, role))
+
+        # Merchant income: merchants sell what producers made
+        # Each merchant earns based on available supply and demand
+        merchant_rows = conn.execute("""
+            SELECT agent_id, balance FROM agents WHERE role='merchant' AND is_child=0
+        """).fetchall()
+        for m in merchant_rows:
+            # Check what's in stock
+            sellable = conn.execute("""
+                SELECT item, supply, buy_price FROM market
+                WHERE supply > 5 ORDER BY supply DESC LIMIT 5
+            """).fetchall()
+            day_sales = 0.0
+            for s in sellable:
+                units_sold = min(s["supply"], _rng.randint(2, 8))
+                base_p     = BASE_PRICES.get(s["item"], {}).get("buy", s["buy_price"])
+                revenue    = units_sold * base_p * 0.04  # merchant margin on base price only
+                day_sales += revenue
+                conn.execute("UPDATE market SET supply=MAX(0,supply-?) WHERE item=?",
+                             (units_sold, s["item"]))
+            conn.execute("UPDATE agents SET balance=balance+? WHERE agent_id=?",
+                         (day_sales, m["agent_id"]))
+
+        # ── Tax income ───────────────────────────────────────────────────────
         pop_count  = conn.execute("SELECT COUNT(*) FROM agents WHERE is_child=0").fetchone()[0]
         worker_tax = conn.execute(
-            "SELECT COUNT(*) FROM agents WHERE role NOT IN ('citizen','child')"
+            "SELECT COUNT(*) FROM agents WHERE role NOT IN ('citizen','child') AND is_child=0"
         ).fetchone()[0]
-        # Base: 15A tax per worker per day + 5A per citizen
-        daily_tax = (worker_tax * 15) + ((pop_count - worker_tax) * 5)
-        # Merchant bonus: each merchant generates ~40A/day in trade volume
-        merchants = conn.execute("SELECT COUNT(*) FROM agents WHERE role='merchant'").fetchone()[0]
-        farmer_income = conn.execute("SELECT COUNT(*) FROM agents WHERE role='farmer'").fetchone()[0]
-        trade_revenue = (merchants * 40) + (farmer_income * 20)
-        treas += daily_tax + trade_revenue
+        daily_tax  = (worker_tax * 10) + ((pop_count - worker_tax) * 3)
+        treas     += daily_tax
 
         # Auto-partnership formation — agents with high relationship strength become partners
         strong_pairs = conn.execute("""
