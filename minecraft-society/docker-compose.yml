@@ -1,15 +1,13 @@
-version: "3.8"
-
 services:
 
-  # ── Minecraft Server (PaperMC 1.21) ─────────────────────────────────────────
+  # ── Vanilla Java Minecraft Server ────────────────────────────────────────────
   minecraft:
     image: itzg/minecraft-server:latest
     container_name: osociety-minecraft
     restart: unless-stopped
     environment:
       EULA: "TRUE"
-      TYPE: "PAPER"
+      TYPE: "VANILLA"
       VERSION: "1.21.4"
       MEMORY: "4G"
       MAX_PLAYERS: "20"
@@ -19,20 +17,20 @@ services:
       ALLOW_NETHER: "true"
       GENERATE_STRUCTURES: "true"
       VIEW_DISTANCE: "12"
-      OPS: ""
-      PLUGINS_SYNC_UPDATE: "false"
+      ENABLE_COMMAND_BLOCK: "true"
+      SPAWN_PROTECTION: "0"
     volumes:
       - /mnt/user/Data/minecraft/world:/data/world
-      - /mnt/user/Data/minecraft/plugins:/data/plugins
       - /mnt/user/Data/minecraft/config:/data/config
+      - /mnt/user/Data/minecraft/logs:/data/logs
     ports:
-      - "25565:25565"   # Public Minecraft port
+      - "25565:25565"
     networks:
       - osociety
     extra_hosts:
       - "host.docker.internal:172.22.0.1"
 
-  # ── OSociety Agent Server (Python / LLM brain) ────────────────────────────
+  # ── OSociety Agent Server (Python brain) ─────────────────────────────────────
   agent-server:
     build:
       context: ./agent-server
@@ -44,12 +42,17 @@ services:
       DATA_DIR:  "/data"
       PORT:      "7432"
       MAX_TOKENS: "200"
+      MC_RCON_HOST: "osociety-minecraft"
+      MC_RCON_PORT: "25575"
+      MC_RCON_PASS: "osociety_rcon_pass"
     volumes:
       - /mnt/user/Data/minecraft/agent-data:/data
     ports:
       - "7432:7432"
     networks:
       - osociety
+    depends_on:
+      - minecraft
     extra_hosts:
       - "host.docker.internal:172.22.0.1"
 
