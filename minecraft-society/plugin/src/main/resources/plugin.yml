@@ -1,0 +1,28 @@
+name: OSociety
+version: 1.0.0
+main: ai.osone.society.OSocietyPlugin
+api-version: 1.21
+description: AI-driven villager society — full economy, law, governance
+authors: [OSONE, skyd]
+
+commands:
+  society:
+    description: Society admin commands
+    usage: /society <info|reset|event|spawn|stats>
+  bank:
+    description: Interact with the bank
+    usage: /bank <balance|deposit <amount>|withdraw <amount>|loan <amount>>
+  law:
+    description: View laws and criminal records
+    usage: /law <list|record [player]|wanted|report <villager>>
+  talk:
+    description: Talk to nearest villager
+    usage: /talk <message>
+
+permissions:
+  osociety.admin:
+    description: Full admin access
+    default: op
+  osociety.player:
+    description: Player interactions
+    default: true

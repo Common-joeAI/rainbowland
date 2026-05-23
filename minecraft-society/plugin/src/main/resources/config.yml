@@ -1,0 +1,42 @@
+agent-server:
+  host: "127.0.0.1"
+  port: 7432
+  timeout-ms: 8000
+
+society:
+  name: "Aethoria"
+  starting-balance: 100
+  currency-name: "Aurums"
+  currency-symbol: "⚜"
+  max-villagers: 50
+  tick-interval: 100        # ticks between autonomous agent actions (100 = 5 seconds)
+  conversation-radius: 5.0  # blocks — how close player must be to talk
+  think-interval: 600       # ticks between unprompted agent decisions (600 = 30 seconds)
+
+roles:
+  mayor:       { max: 1,  display: "Mayor",       color: "GOLD" }
+  banker:      { max: 2,  display: "Banker",       color: "GREEN" }
+  merchant:    { max: 6,  display: "Merchant",     color: "YELLOW" }
+  guard:       { max: 4,  display: "Guard",        color: "RED" }
+  builder:     { max: 4,  display: "Builder",      color: "AQUA" }
+  farmer:      { max: 4,  display: "Farmer",       color: "DARK_GREEN" }
+  judge:       { max: 1,  display: "Judge",        color: "DARK_PURPLE" }
+  citizen:     { max: 20, display: "Citizen",      color: "WHITE" }
+  doctor:      { max: 2,  display: "Doctor",       color: "WHITE" }
+  librarian:   { max: 2,  display: "Librarian",    color: "BLUE" }
+
+economy:
+  tax-rate: 0.05
+  loan-interest: 0.10
+  merchant-markup: 0.20
+  bank-reserve-min: 500
+  wage-schedule-ticks: 24000   # once per Minecraft day
+
+law:
+  crimes:
+    theft:      { fine: 50,  jail-time-min: 2 }
+    assault:    { fine: 100, jail-time-min: 5 }
+    vandalism:  { fine: 30,  jail-time-min: 1 }
+    trespassing:{ fine: 20,  jail-time-min: 0 }
+  max-strikes: 3
+  pardon-after-days: 7

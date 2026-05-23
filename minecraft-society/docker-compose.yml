@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+
+  # ── Minecraft Server (PaperMC 1.21) ─────────────────────────────────────────
+  minecraft:
+    image: itzg/minecraft-server:latest
+    container_name: osociety-minecraft
+    restart: unless-stopped
+    environment:
+      EULA: "TRUE"
+      TYPE: "PAPER"
+      VERSION: "1.21.4"
+      MEMORY: "4G"
+      MAX_PLAYERS: "20"
+      SERVER_NAME: "Aethoria - AI Society"
+      MOTD: "§6§lAethoria§r §7— A living AI society. Every villager is real."
+      DIFFICULTY: "normal"
+      ALLOW_NETHER: "true"
+      GENERATE_STRUCTURES: "true"
+      VIEW_DISTANCE: "12"
+      OPS: ""
+      PLUGINS_SYNC_UPDATE: "false"
+    volumes:
+      - /mnt/user/Data/minecraft/world:/data/world
+      - /mnt/user/Data/minecraft/plugins:/data/plugins
+      - /mnt/user/Data/minecraft/config:/data/config
+    ports:
+      - "25565:25565"   # Public Minecraft port
+    networks:
+      - osociety
+    extra_hosts:
+      - "host.docker.internal:172.22.0.1"
+
+  # ── OSociety Agent Server (Python / LLM brain) ────────────────────────────
+  agent-server:
+    build:
+      context: ./agent-server
+      dockerfile: Dockerfile
+    container_name: osociety-agents
+    restart: unless-stopped
+    environment:
+      LLAMA_URL: "http://172.22.0.1:8080"
+      DATA_DIR:  "/data"
+      PORT:      "7432"
+      MAX_TOKENS: "200"
+    volumes:
+      - /mnt/user/Data/minecraft/agent-data:/data
+    ports:
+      - "7432:7432"
+    networks:
+      - osociety
+    extra_hosts:
+      - "host.docker.internal:172.22.0.1"
+
+networks:
+  osociety:
+    driver: bridge
