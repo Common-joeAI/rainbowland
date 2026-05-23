@@ -1064,6 +1064,9 @@ async def fast_forward(req: FastForwardRequest):
             f"({'x'+str(req.mc_day_speed)+' speed' if req.mc_day_speed > 1 else 'normal'})"
         )
 
+    # Load treasury once — carry it through all ticks
+    treas = get_treasury()
+
     for i in range(ticks):
         # Advance Minecraft time by one full day (24000 ticks)
         if req.mc_day_speed > 0:
@@ -1071,7 +1074,6 @@ async def fast_forward(req: FastForwardRequest):
 
         # Run economy tick (reuse the existing logic inline)
         import random as _rng
-        treas = get_treasury()
         conn  = get_db()
         rows  = conn.execute("SELECT * FROM agents").fetchall()
         current_tick = get_current_tick() + 1
@@ -1126,6 +1128,21 @@ async def fast_forward(req: FastForwardRequest):
                     sell_price=MAX(1,ROUND(sell_price*(1.0+(?*0.01-?*0.005)),2))
                 WHERE item=?
             """, (sd, dd, dd, sd, dd, sd, item))
+
+        # ── Tax income — economy stays solvent ──────────────────────────────
+        # Each working (non-citizen, non-child) agent contributes income tax
+        # Farmers/merchants also generate trade revenue into the treasury
+        pop_count  = conn.execute("SELECT COUNT(*) FROM agents WHERE is_child=0").fetchone()[0]
+        worker_tax = conn.execute(
+            "SELECT COUNT(*) FROM agents WHERE role NOT IN ('citizen','child')"
+        ).fetchone()[0]
+        # Base: 15A tax per worker per day + 5A per citizen
+        daily_tax = (worker_tax * 15) + ((pop_count - worker_tax) * 5)
+        # Merchant bonus: each merchant generates ~40A/day in trade volume
+        merchants = conn.execute("SELECT COUNT(*) FROM agents WHERE role='merchant'").fetchone()[0]
+        farmer_income = conn.execute("SELECT COUNT(*) FROM agents WHERE role='farmer'").fetchone()[0]
+        trade_revenue = (merchants * 40) + (farmer_income * 20)
+        treas += daily_tax + trade_revenue
 
         # Auto-partnership formation — agents with high relationship strength become partners
         strong_pairs = conn.execute("""
