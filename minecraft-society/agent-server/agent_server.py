@@ -51,6 +51,27 @@ ROLE_WAGES = {
 # Cost to have a child — paid by both parents
 CHILD_COST = 150
 
+# ── Survival need costs (Aurums per day) ──────────────────────────────────────
+# What each agent pays to meet their basic needs
+NEED_COSTS = {
+    "food":    8,   # bread / food_ration from the market
+    "water":   3,   # free from wells but small upkeep fee for infrastructure
+    "shelter": 5,   # rent to the builder / housing fund
+}
+# Total daily survival cost = 16A — doable on citizen wage (40A) but tight for unemployed children/demoted
+DAILY_SURVIVAL_COST = sum(NEED_COSTS.values())  # 16A
+
+# How much each need decays per day without payment (0-1 scale)
+NEED_DECAY = {
+    "hunger":  0.25,   # starve in 4 days without food
+    "thirst":  0.35,   # dehydrate in ~3 days
+    "shelter": 0.15,   # homelessness is slower but still lethal
+}
+# Need thresholds that affect mood and productivity
+NEED_CRISIS  = 0.25   # below this → desperate mood, halved productivity
+NEED_DEAD    = 0.0    # at zero → death
+
+
 # Age in Minecraft days before a child becomes an adult
 CHILD_GROW_UP_DAYS = 3
 
@@ -173,6 +194,14 @@ def init_db():
             birth_tick  INTEGER DEFAULT 0,
             -- Position
             x REAL DEFAULT 0, y REAL DEFAULT 64, z REAL DEFAULT 0,
+            -- Survival needs (0.0 = dead, 1.0 = perfect)
+            hunger      REAL DEFAULT 1.0,
+            thirst      REAL DEFAULT 1.0,
+            shelter     REAL DEFAULT 1.0,
+            health      REAL DEFAULT 1.0,
+            -- Need flags
+            is_dead     INTEGER DEFAULT 0,
+            cause_of_death TEXT DEFAULT NULL,
             created_at  REAL DEFAULT (strftime('%s','now')),
             last_active REAL DEFAULT (strftime('%s','now'))
         );
@@ -253,6 +282,16 @@ def init_db():
         INSERT OR IGNORE INTO treasury (id, balance) VALUES (1, 5000.0);
         INSERT OR IGNORE INTO society_tick (tick_number, mc_day) VALUES (0, 0);
     """)
+    # Migrate existing DB — add columns if missing
+    for col, default in [
+        ("hunger",  "1.0"), ("thirst",  "1.0"), ("shelter", "1.0"),
+        ("health",  "1.0"), ("is_dead", "0"),    ("cause_of_death", "NULL"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE agents ADD COLUMN {col} REAL DEFAULT {default}")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
 
     for item, p in BASE_PRICES.items():
         conn.execute("INSERT OR IGNORE INTO market (item,buy_price,sell_price) VALUES(?,?,?)",
@@ -1077,7 +1116,7 @@ async def fast_forward(req: FastForwardRequest):
         conn  = get_db()
         rows  = conn.execute("SELECT * FROM agents").fetchall()
         current_tick = get_current_tick() + 1
-        day_result   = {"tick": current_tick, "wages": 0, "demotions": 0, "grown_up": 0}
+        day_result   = {"tick": current_tick, "wages": 0, "demotions": 0, "grown_up": 0, "deaths": 0}
 
         for row in rows:
             aid    = row["agent_id"]
@@ -1136,6 +1175,146 @@ async def fast_forward(req: FastForwardRequest):
                   min_buy, max_buy, dd, sd,
                   min_sell, max_sell, dd, sd,
                   item))
+
+        # ── Survival needs processing ────────────────────────────────────────
+        # Every agent (except dead ones) needs food, water, shelter each day.
+        # They pay from their own balance. If they can't afford it, needs decay.
+        # Reaching 0 on any need = death. Below NEED_CRISIS = desperate.
+
+        living = conn.execute(
+            "SELECT agent_id, name, role, balance, hunger, thirst, shelter, health, is_child "
+            "FROM agents WHERE is_dead=0"
+        ).fetchall()
+
+        food_available   = conn.execute("SELECT supply FROM market WHERE item='food_ration'").fetchone()
+        bread_available  = conn.execute("SELECT supply FROM market WHERE item='bread'").fetchone()
+        water_fund       = True   # water is always available (well infrastructure)
+        housing_funded   = treas > 200  # shelter only works if treasury is solvent
+
+        total_food_consumed = 0
+        deaths_this_tick    = []
+
+        for ag in living:
+            aid     = ag["agent_id"]
+            bal     = ag["balance"] or 0.0
+            hunger  = ag["hunger"]  if ag["hunger"]  is not None else 1.0
+            thirst  = ag["thirst"]  if ag["thirst"]  is not None else 1.0
+            shelter = ag["shelter"] if ag["shelter"] is not None else 1.0
+            health  = ag["health"]  if ag["health"]  is not None else 1.0
+            is_child= ag["is_child"]
+
+            # Children get subsidized food from parents / community
+            if is_child:
+                # Community feeds children free if there's food in market
+                if (food_available and food_available["supply"] > 0) or                    (bread_available and bread_available["supply"] > 0):
+                    hunger  = min(1.0, hunger + 0.3)
+                    total_food_consumed += 1
+                thirst  = min(1.0, thirst  + 0.3)
+                shelter = min(1.0, shelter + 0.2)
+                conn.execute(
+                    "UPDATE agents SET hunger=?, thirst=?, shelter=?, health=? WHERE agent_id=?",
+                    (hunger, thirst, shelter, health, aid)
+                )
+                continue
+
+            food_cost    = NEED_COSTS["food"]
+            water_cost   = NEED_COSTS["water"]
+            shelter_cost = NEED_COSTS["shelter"]
+
+            # ── Food ────────────────────────────────────────────────────────
+            if bal >= food_cost:
+                # Check market has food
+                food_supply = (food_available["supply"] if food_available else 0) +                               (bread_available["supply"] if bread_available else 0)
+                if food_supply > 0:
+                    bal    -= food_cost
+                    hunger  = min(1.0, hunger + 0.4)
+                    total_food_consumed += 1
+                    conn.execute("UPDATE market SET supply=MAX(0,supply-1) WHERE item='food_ration'")
+                else:
+                    # No food in market — hunger decays faster (famine)
+                    hunger -= NEED_DECAY["hunger"] * 1.5
+                    if hunger <= 0 and _rng.random() < 0.6:
+                        deaths_this_tick.append((aid, ag["name"], ag["role"], "starvation"))
+                        conn.execute("UPDATE agents SET is_dead=1, cause_of_death='starvation', mood='dead' WHERE agent_id=?", (aid,))
+                        continue
+            else:
+                # Can't afford food — hunger decays
+                hunger -= NEED_DECAY["hunger"]
+                if hunger <= NEED_CRISIS:
+                    # Desperate — try to beg from treasury
+                    if treas >= food_cost:
+                        treas  -= food_cost
+                        hunger  = min(1.0, hunger + 0.2)
+                        conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+                            (aid, "event", f"Day {current_tick}: Needed charity food from treasury. Humiliating."))
+                    else:
+                        conn.execute("INSERT INTO agent_memory (agent_id,entry_type,value) VALUES(?,?,?)",
+                            (aid, "event", f"Day {current_tick}: Starving and treasury is empty. This is a crisis."))
+
+            if hunger <= 0:
+                deaths_this_tick.append((aid, ag["name"], ag["role"], "starvation"))
+                conn.execute("UPDATE agents SET is_dead=1, cause_of_death='starvation', mood='dead' WHERE agent_id=?", (aid,))
+                continue
+
+            # ── Water ───────────────────────────────────────────────────────
+            if bal >= water_cost:
+                bal    -= water_cost
+                thirst  = min(1.0, thirst + 0.5)
+            else:
+                thirst -= NEED_DECAY["thirst"]
+                if thirst <= 0:
+                    deaths_this_tick.append((aid, ag["name"], ag["role"], "dehydration"))
+                    conn.execute("UPDATE agents SET is_dead=1, cause_of_death='dehydration', mood='dead' WHERE agent_id=?", (aid,))
+                    continue
+
+            # ── Shelter ──────────────────────────────────────────────────────
+            if bal >= shelter_cost and housing_funded:
+                bal     -= shelter_cost
+                shelter  = min(1.0, shelter + 0.3)
+                treas   += shelter_cost * 0.8   # rent goes to treasury
+            else:
+                shelter -= NEED_DECAY["shelter"]
+
+            # ── Health consequences ──────────────────────────────────────────
+            avg_need = (hunger + thirst + shelter) / 3.0
+            if avg_need < NEED_CRISIS:
+                health  = max(0.0, health - 0.1)
+                # Set desperate mood
+                conn.execute("UPDATE agents SET mood='desperate' WHERE agent_id=?", (aid,))
+                if aid in agents: agents[aid]["mood"] = "desperate"
+            elif avg_need > 0.7:
+                health  = min(1.0, health + 0.05)
+                # Restore mood if was desperate
+                if ag["role"] != "dead":
+                    current_mood = conn.execute(
+                        "SELECT mood FROM agents WHERE agent_id=?", (aid,)
+                    ).fetchone()
+                    if current_mood and current_mood["mood"] == "desperate":
+                        conn.execute("UPDATE agents SET mood='content' WHERE agent_id=?", (aid,))
+
+            # Natural death from very poor health
+            if health <= 0.1 and _rng.random() < 0.3:
+                deaths_this_tick.append((aid, ag["name"], ag["role"], "illness"))
+                conn.execute("UPDATE agents SET is_dead=1, cause_of_death='illness', mood='dead' WHERE agent_id=?", (aid,))
+                continue
+
+            # Write updated needs back
+            conn.execute(
+                "UPDATE agents SET hunger=?, thirst=?, shelter=?, health=?, balance=? WHERE agent_id=?",
+                (max(0.0, hunger), max(0.0, thirst), max(0.0, shelter),
+                 max(0.0, health), max(0.0, bal), aid)
+            )
+
+        day_result["deaths"] = len(deaths_this_tick)
+
+        # Announce deaths in MC
+        for d_id, d_name, d_role, cause in deaths_this_tick:
+            await mc_say(f"[Obituary] {d_name} ({d_role}) has died of {cause}. RIP.")
+            if aid in agents: del agents[d_id]
+
+        # Update day_result and food supply ref for next iteration
+        food_available  = conn.execute("SELECT supply FROM market WHERE item='food_ration'").fetchone()
+        bread_available = conn.execute("SELECT supply FROM market WHERE item='bread'").fetchone()
 
         # ── Production system ────────────────────────────────────────────────
         # Each role produces goods into the market supply each day.
@@ -1288,6 +1467,7 @@ async def fast_forward(req: FastForwardRequest):
         total_grown_up   += day_result["grown_up"]
         total_wages_paid += day_result["wages"]
         results.append(day_result)
+        total_deaths = sum(r.get("deaths", 0) for r in results)
 
     end_treasury = get_treasury()
 
@@ -1299,6 +1479,7 @@ async def fast_forward(req: FastForwardRequest):
     families  = conn.execute("SELECT COUNT(*) as c FROM agents WHERE partner_id IS NOT NULL").fetchone()["c"]
     conn.close()
 
+    total_deaths = sum(r.get("deaths", 0) for r in results)
     summary = {
         "ticks_run":       ticks,
         "treasury_start":  start_treasury,
@@ -1311,6 +1492,7 @@ async def fast_forward(req: FastForwardRequest):
         "children_alive":  children,
         "max_generation":  gen_max,
         "couples":         families // 2,
+        "total_deaths":    total_deaths,
     }
 
     if req.announce:
