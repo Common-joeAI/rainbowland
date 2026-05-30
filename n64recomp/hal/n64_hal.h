@@ -109,15 +109,25 @@ void pi_dma_write(u32 dram_addr, u32 cart_addr, u32 length);
 
 /* ── Serial Interface (SI) — controllers ────────────────────────────────── */
 typedef struct {
+    /* Face buttons */
     bool a, b, z, start;
+    /* D-pad */
     bool up, down, left, right;
+    /* Shoulder + C-buttons */
     bool l, r, cu, cd, cl, cr;
+    /* Analog stick: -128 to +127 */
     i8   stick_x;
     i8   stick_y;
 } N64Controller;
 
 extern N64Controller g_controllers[4];
+void si_init_gamepads(void);      /* call once at startup */
+void si_close_gamepads(void);     /* call at shutdown */
 void si_poll_controllers(void);   /* called each frame before game reads SI */
+
+/* SI register intercept — called from hw_read32/hw_write32 */
+bool si_handle_read (u32 vaddr, u32 *out);
+bool si_handle_write(u32 vaddr, u32  val);
 
 /* ── RSP (Reality Signal Processor) ─────────────────────────────────────── */
 /*

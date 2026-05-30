@@ -95,6 +95,7 @@ file(GLOB FUNC_SOURCES "src/functions/*.c")
 add_executable({game_name}
     src/main.c
     src/hal/hal_sdl.c
+    src/hal/si.c
     ${{FUNC_SOURCES}}
 )
 
@@ -260,7 +261,7 @@ def generate_vs_project(cg: CodeGenResult,
     # ── HAL files ─────────────────────────────────────────────────────────────
     import shutil
     hal_src = Path(hal_src_dir)
-    for fname in ["n64_hal.h", "hal_sdl.c"]:
+    for fname in ["n64_hal.h", "hal_sdl.c", "si.c"]:
         src_file = hal_src / fname
         if src_file.exists():
             dst_dir = out / "src" / "hal" if fname.endswith(".c") else out / "src" / "hal"

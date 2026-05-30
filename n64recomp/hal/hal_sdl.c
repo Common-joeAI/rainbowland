@@ -8,6 +8,7 @@
  */
 
 #include "n64_hal.h"
+/* si.c is compiled separately and linked in — declarations via n64_hal.h */
 #include <SDL2/SDL.h>
 #include <AL/al.h>
 #include <AL/alc.h>
@@ -18,8 +19,7 @@
 /* ── RDRAM ───────────────────────────────────────────────────────────────── */
 u8 N64_RDRAM[N64_RDRAM_SIZE];
 
-/* ── Controllers ──────────────────────────────────────────────────────────  */
-N64Controller g_controllers[4];
+/* g_controllers defined in si.c */
 
 /* ── Internals ────────────────────────────────────────────────────────────── */
 static SDL_Window   *s_window   = NULL;
@@ -76,7 +76,9 @@ bool hal_init(const char *title, int width, int height) {
     alSourcei(s_al_source, AL_LOOPING, AL_FALSE);
 
     memset(N64_RDRAM, 0, N64_RDRAM_SIZE);
-    memset(g_controllers, 0, sizeof(g_controllers));
+
+    /* Init gamepads (detects Xbox/PS controllers via SDL GameController API) */
+    si_init_gamepads();
 
     printf("[hal] Initialized — %dx%d window, OpenAL audio\n", width, height);
     return true;
@@ -92,6 +94,7 @@ void hal_shutdown(void) {
     if (s_fb_tex)   SDL_DestroyTexture(s_fb_tex);
     if (s_renderer) SDL_DestroyRenderer(s_renderer);
     if (s_window)   SDL_DestroyWindow(s_window);
+    si_close_gamepads();
     SDL_Quit();
 }
 
@@ -166,24 +169,7 @@ void ai_submit_dma(u32 dram_addr, u32 length, u32 frequency) {
     if (state != AL_PLAYING) alSourcePlay(s_al_source);
 }
 
-/* ── Controllers ──────────────────────────────────────────────────────────── */
-
-void si_poll_controllers(void) {
-    const u8 *k = SDL_GetKeyboardState(NULL);
-    N64Controller *c = &g_controllers[0];
-    c->a      = k[SDL_SCANCODE_X];
-    c->b      = k[SDL_SCANCODE_Z];
-    c->z      = k[SDL_SCANCODE_LSHIFT];
-    c->start  = k[SDL_SCANCODE_RETURN];
-    c->up     = k[SDL_SCANCODE_UP];
-    c->down   = k[SDL_SCANCODE_DOWN];
-    c->left   = k[SDL_SCANCODE_LEFT];
-    c->right  = k[SDL_SCANCODE_RIGHT];
-    c->l      = k[SDL_SCANCODE_A];
-    c->r      = k[SDL_SCANCODE_S];
-    c->stick_x = (k[SDL_SCANCODE_D] ? 80 : 0) - (k[SDL_SCANCODE_A] ? 80 : 0);
-    c->stick_y = (k[SDL_SCANCODE_W] ? 80 : 0) - (k[SDL_SCANCODE_S] ? 80 : 0);
-}
+/* si_poll_controllers() is now in si.c */
 
 /* ── Hardware register I/O ────────────────────────────────────────────────── */
 
@@ -191,21 +177,33 @@ void si_poll_controllers(void) {
 #define RANGE(lo, hi) ((vaddr) >= (lo) && (vaddr) <= (hi))
 
 u32 hw_read32(u32 vaddr) {
+    /* SI — route to si.c which handles joybus / PIF responses */
+    if (RANGE(0xA4800000, 0xA480001F)) {
+        u32 out = 0;
+        if (si_handle_read(vaddr, &out)) return out;
+        return 0;
+    }
     if (RANGE(0xA4300000, 0xA43FFFFF)) return 0;  /* AI — return ready */
     if (RANGE(0xA4400000, 0xA44FFFFF)) return 0;  /* VI */
     if (RANGE(0xA4500000, 0xA45FFFFF)) return 0;  /* PI */
-    if (RANGE(0xA4800000, 0xA48FFFFF)) return 0;  /* SI */
     return 0;
 }
 
 void hw_write32(u32 vaddr, u32 val) {
+    /* SI — route to si.c (controller DMA / PIF commands) */
+    if (RANGE(0xA4800000, 0xA480001F)) {
+        si_handle_write(vaddr, val);
+        return;
+    }
     /* VI framebuffer origin */
     if (vaddr == 0xA4400004) {
         vi_present_framebuffer(val, s_fb_width, s_fb_height, 16);
+        return;
     }
-    /* AI DMA — treat as audio submit */
+    /* AI DMA */
     if (vaddr == 0xA4500000) {
-        /* AI_DRAM_ADDR write followed by AI_LEN_REG — handled lazily */
+        /* AI_DRAM_ADDR write — stored in ai.c (future) */
+        return;
     }
     (void)val;
 }
