@@ -86,16 +86,18 @@ def main():
 
     # ── Summary ───────────────────────────────────────────────────────────────
     elapsed = time.time() - t_start
-    total_funcs = len(cg.functions)
-    ai_count    = sum(1 for f in cg.functions if f.method == "ai")
-    det_count   = sum(1 for f in cg.functions if f.method == "deterministic")
-    stub_count  = sum(1 for f in cg.functions if f.method == "stub")
-    warn_count  = sum(len(f.warnings) for f in cg.functions)
+    total_funcs  = len(cg.functions)
+    ai_count     = sum(1 for f in cg.functions if f.method == "ai")
+    det_count    = sum(1 for f in cg.functions if f.method == "deterministic")
+    stub_count   = sum(1 for f in cg.functions if f.method == "stub")
+    warn_count   = sum(len(f.warnings) for f in cg.functions)
+    first_entry  = cg.functions[0].boundary.name if cg.functions else "none"
 
     print()
     print("=" * 60)
     print(f"  ✅ DONE in {elapsed:.1f}s")
     print(f"  Game:         {game_name}")
+    print(f"  Entry func:   {first_entry}")
     print(f"  Functions:    {total_funcs}")
     print(f"    AI-trans:   {ai_count}")
     print(f"    Heuristic:  {det_count}")

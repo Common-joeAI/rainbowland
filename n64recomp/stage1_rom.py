@@ -149,9 +149,16 @@ def _extract_segments(data: bytes, header: RomHeader) -> list[CodeSegment]:
     game_start = 0x1000
     game_data  = data[game_start:]
 
-    # Virtual address: entry point is usually 0x80000400 but varies
-    # Align back to segment start — entry may be a few kB in
-    vaddr_base = 0x80000000
+    # Virtual address: the ROM is DMA'd to RDRAM starting at 0x80000000,
+    # but the first 0x1000 bytes are the IPL3 bootcode (not game code).
+    # So game code lands at 0x80001000 in RDRAM.
+    # The entry point (e.g. 0x80000400) is within the bootcode region —
+    # games jump from bootcode into the main binary which starts at 0x80001000.
+    #
+    # We track both:
+    #   vaddr = 0x80001000  (where game binary lands in RDRAM)
+    #   entry_point from header (where CPU starts executing)
+    vaddr_base = 0x80001000
 
     seg = CodeSegment(
         vaddr=vaddr_base,

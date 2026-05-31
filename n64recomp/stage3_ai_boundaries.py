@@ -121,18 +121,44 @@ Output format:
 }"""
 
 
+def _parse_hex_or_int(val) -> int:
+    """Parse a value that may be int, decimal string, or 0x-prefixed hex string."""
+    if isinstance(val, int):
+        return val
+    s = str(val).strip()
+    if s.startswith("0x") or s.startswith("0X"):
+        return int(s, 16)
+    return int(s, 10)
+
+
 def _parse_ai_response(raw: str) -> list[FunctionBoundary]:
-    """Extract JSON from AI response, handling markdown code fences."""
-    # Strip markdown fences
-    raw = re.sub(r"```(?:json)?", "", raw).strip()
+    """Extract JSON from AI response, handling markdown fences and mixed types."""
+    # Strip markdown code fences (``` or ```json)
+    raw = re.sub(r"```(?:json)?\s*", "", raw).strip()
+    raw = raw.replace("```", "").strip()
+
+    # Sometimes the model wraps output in extra text — extract first {...}
+    json_match = re.search(r'{\s*"functions".*?}\s*}\s*(?:,|$)', raw, re.DOTALL)
+    if not json_match:
+        json_match = re.search(r'{.*}', raw, re.DOTALL)
+    if json_match:
+        raw = json_match.group(0)
+
     try:
         data = json.loads(raw)
         funcs = []
         for f in data.get("functions", []):
             try:
+                start = _parse_hex_or_int(f["start"])
+                end   = _parse_hex_or_int(f["end"])
+                # Sanity check: must be valid N64 KSEG0/KSEG1 addresses
+                if not (0x80000000 <= start <= 0xBFFFFFFF):
+                    continue
+                if end < start:
+                    end = start + 4
                 funcs.append(FunctionBoundary(
-                    start=int(f["start"]),
-                    end=int(f["end"]),
+                    start=start,
+                    end=end,
                     type=f.get("type", "normal"),
                     name=f.get("name", ""),
                     confidence=0.85,

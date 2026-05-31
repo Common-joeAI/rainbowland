@@ -37,6 +37,7 @@ MAIN_C_TEMPLATE = """\
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include "../include/functions.h"
 #include "../hal/n64_hal.h"
@@ -44,8 +45,8 @@ MAIN_C_TEMPLATE = """\
 /* Declared in hal_sdl.c */
 extern void hal_set_rom(const uint8_t *data, size_t size);
 
-/* Game entry point (recompiled from 0x{entry_point:08X}) */
-extern void func_{entry_point:08x}(void);
+/* First function in the recompiled binary (game binary entry) */
+extern void {first_func_name}(void);
 
 int main(int argc, char *argv[]) {{
     if (argc < 2) {{
@@ -57,9 +58,10 @@ int main(int argc, char *argv[]) {{
     FILE *f = fopen(argv[1], "rb");
     if (!f) {{ perror("fopen"); return 1; }}
     fseek(f, 0, SEEK_END);
-    size_t rom_size = ftell(f);
+    size_t rom_size = (size_t)ftell(f);
     rewind(f);
-    uint8_t *rom_data = malloc(rom_size);
+    uint8_t *rom_data = (uint8_t*)malloc(rom_size);
+    if (!rom_data) {{ fprintf(stderr, "OOM\n"); return 1; }}
     fread(rom_data, 1, rom_size, f);
     fclose(f);
     hal_set_rom(rom_data, rom_size);
@@ -69,7 +71,7 @@ int main(int argc, char *argv[]) {{
 
     /* Boot the game */
     printf("[n64recomp] Starting {game_name}...\\n");
-    func_{entry_point:08x}();
+    {first_func_name}();
 
     /* Main loop (game's main loop will have jumped here via tail-call or longjmp) */
     while (hal_poll_events()) {{
@@ -218,7 +220,8 @@ def generate_vs_project(cg: CodeGenResult,
                          game_name: str,
                          entry_point: int,
                          output_dir: str | Path,
-                         hal_src_dir: str | Path) -> Path:
+                         hal_src_dir: str | Path,
+                         first_func_name: str = "") -> Path:
     """
     Write all source files and project files to output_dir.
     Returns the path to the generated CMakeLists.txt.
@@ -270,9 +273,16 @@ def generate_vs_project(cg: CodeGenResult,
 
     # ── main.c ────────────────────────────────────────────────────────────────
     with open(out / "src" / "main.c", "w") as f:
+        # Use first generated function as entry, fall back to entry_point addr
+        _first_func = first_func_name or (
+            cg.functions[0].boundary.name if cg.functions else
+            f"func_{entry_point:08x}"
+        )
         f.write(MAIN_C_TEMPLATE.format(
             game_name=game_slug,
             entry_point=entry_point,
+            first_func_name=_first_func,
+            first_func_addr=cg.functions[0].boundary.start if cg.functions else entry_point,
         ))
 
     # ── CMakeLists.txt ────────────────────────────────────────────────────────
