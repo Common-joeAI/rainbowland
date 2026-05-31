@@ -1,89 +1,135 @@
-# n64recomp — AI-Driven N64 → Native Windows x64 Recompiler
+# n64recomp
 
-Convert a Nintendo 64 ROM you own into a native Windows `.exe` — no emulator, no runtime layer, just native x64 code.
+> Convert N64 ROMs you own into native Windows x64 executables — no emulator, no runtime layer.
+
+![Pipeline](https://img.shields.io/badge/stages-5-blue) ![Platform](https://img.shields.io/badge/output-Windows%20x64-0078d4) ![AI](https://img.shields.io/badge/AI-Groq%20llama--3.3-blueviolet) ![License](https://img.shields.io/badge/license-MIT-green)
+
+## Download
+
+Grab the latest `n64recomp.exe` from [Releases](../../releases) — no install needed.
 
 ## How it works
 
 ```
 your_game.z64
       │
-      ▼ Stage 1: ROM Parser
-  Validates header, detects byte order (z64/v64/n64), extracts code segments
-
-      ▼ Stage 2: MIPS Disassembler (rabbitizer)
-  Decodes every MIPS R4300i instruction, identifies calls/branches/returns
-
-      ▼ Stage 3: AI Function Boundary Detection (Groq llama-3.3-70b)
-  Finds where functions start and end — the hard part humans used to do manually
-
-      ▼ Stage 4: C Code Generator
-  Translates each function to compilable C — AI for complex ones, deterministic for simple ones
-
-      ▼ Stage 5: Visual Studio Project Generator
-  Writes CMakeLists.txt, HAL (SDL2/OpenAL), main.c → ready to build
-
+      ▼  Stage 1 — ROM Parser
+         Validates header, detects byte order (z64/v64/n64)
+      │
+      ▼  Stage 2 — MIPS Disassembler  (rabbitizer)
+         Decodes every R4300i instruction, maps calls/branches/returns
+      │
+      ▼  Stage 3 — AI Function Boundary Detection  (Groq llama-3.3-70b)
+         Finds where functions start and end — the hard part
+      │
+      ▼  Stage 4 — C Code Generator
+         Translates each function to compilable C (AI + deterministic hybrid)
+      │
+      ▼  Stage 5 — Visual Studio Project Generator
+         CMakeLists.txt, SDL2/OpenAL HAL, main.c → ready to build
       │
       ▼
   your_game.sln  →  Build  →  your_game.exe
 ```
 
-## Setup
+## GUI Usage
 
-### Requirements
-- Python 3.10+
-- `pip install rabbitizer`
-- Set `GROQ_API_KEY` env var (free at console.groq.com) for AI-enhanced output
-- Visual Studio 2022 with C++ workload
-- CMake, SDL2, OpenAL (see `SETUP_DEPS.md` in output folder)
+1. Run **n64recomp.exe**
+2. Drop your `.z64` ROM onto the window (or click Browse)
+3. Optionally enter a [Groq API key](https://console.groq.com) (free) for AI-enhanced analysis
+4. Click **Convert ROM**
+5. Open the output folder and run `build_vs.bat`
+6. Open the `.sln` in Visual Studio 2022 → Ctrl+Shift+B
 
-### Run
+## CLI Usage
+
 ```bash
+pip install rabbitizer
 python pipeline.py your_game.z64
-```
 
-### Options
-```
-python pipeline.py game.z64 --output ./my_output
-python pipeline.py game.z64 --no-ai           # heuristic only, no API needed
-python pipeline.py game.z64 --max-funcs 100   # limit for testing
-python pipeline.py game.z64 --groq-key gsk_xxxxx
+# Options
+python pipeline.py game.z64 --no-ai             # heuristic only
+python pipeline.py game.z64 --max-funcs 200      # limit for testing
+python pipeline.py game.z64 --output ./my_build
+python pipeline.py game.z64 --groq-key gsk_xxx
 ```
 
 ## Output structure
+
 ```
 output/game_name/
-  CMakeLists.txt        ← CMake build config
-  build_vs.bat          ← double-click to generate .sln
-  SETUP_DEPS.md         ← dependency install guide
-  recomp_manifest.json  ← build metadata
+  CMakeLists.txt         ← CMake build config
+  build_vs.bat           ← double-click → generates .sln
+  SETUP_DEPS.md          ← SDL2 / OpenAL install guide
+  recomp_manifest.json   ← build metadata
   src/
-    main.c              ← Windows entry point + game loop
-    functions/          ← one .c file per detected function
+    main.c               ← Windows entry point + game loop
+    functions/           ← one .c file per detected function
     hal/
-      n64_hal.h         ← N64 hardware abstraction layer
-      hal_sdl.c         ← SDL2+OpenAL implementation
+      n64_hal.h          ← N64 hardware abstraction layer
+      hal_sdl.c          ← SDL2 + OpenAL implementation
+      si.c               ← Full PIF/joybus input system
   include/
-    functions.h         ← forward declarations
+    functions.h          ← forward declarations
 ```
+
+## Requirements to compile the output
+
+| Tool | Version |
+|------|---------|
+| Visual Studio 2022 | C++ workload |
+| CMake | 3.20+ |
+| SDL2 | 2.28+ |
+| OpenAL Soft | 1.23+ |
+
+See `SETUP_DEPS.md` in any output folder for detailed install instructions.
+
+## Input / Controller mapping
+
+**Keyboard (P1 fallback):**
+
+| Key | N64 |
+|-----|-----|
+| WASD | Analog stick |
+| Arrow keys | D-pad |
+| X / Z | A / B |
+| Enter | Start |
+| Q / E | L / R |
+| I J K L | C-Up / C-Left / C-Down / C-Right |
+| LShift | Z trigger |
+
+**Xbox / PS controller (auto-detected):**
+
+| Input | N64 |
+|-------|-----|
+| Left stick | Analog stick |
+| Right stick | C-buttons |
+| A / B | A / B |
+| LB | Z trigger |
+| LT / RT | L / R |
+| D-pad | D-pad |
+| Start | Start |
 
 ## Completeness
 
-| Component       | Status     | Notes |
-|----------------|------------|-------|
-| ROM parsing     | ✅ Complete | z64/v64/n64, all byte orders |
-| MIPS disasm     | ✅ Complete | Full R4300i via rabbitizer |
-| Function detect | ✅ Working  | AI + heuristic hybrid |
-| C codegen       | ✅ Working  | ~70% deterministic, AI for complex |
-| HAL (memory)    | ✅ Complete | Full RDRAM r/w with endian swap |
-| HAL (video)     | 🔶 Partial  | Framebuffer present, no RDP |
-| HAL (audio)     | 🔶 Partial  | DMA streaming via OpenAL |
-| HAL (input)     | ✅ Working  | Keyboard → N64 controller |
-| RSP/RDP         | 🔴 Stubbed  | Requires HLE microcode per game |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| ROM parsing | ✅ | z64/v64/n64, all byte orders |
+| MIPS disasm | ✅ | Full R4300i via rabbitizer |
+| Function detection | ✅ | AI + heuristic hybrid |
+| C codegen | ✅ | ~70% deterministic, AI for complex |
+| HAL — memory | ✅ | 8 MB RDRAM with endian correction |
+| HAL — video | 🔶 | Framebuffer output, no RDP |
+| HAL — audio | 🔶 | DMA streaming via OpenAL |
+| HAL — input | ✅ | Full PIF/joybus + Xbox/keyboard |
+| RSP / RDP | 🔴 | Stubbed — requires HLE per game |
 
-The RSP/RDP is the remaining hard part — graphics and audio processing. This is a v1 that gives you a working VS project. RSP HLE is a separate phase.
+RSP/RDP (graphics microcode) is the remaining hard part. Phase 2.
 
 ## Legal
-Only use ROMs of games you legally own. This tool produces source code from your ROM — what you do with it is your responsibility.
+
+Only use ROMs of games you legally own. This tool produces source code from your ROM — what you do with that code is your responsibility.
 
 ---
-Built with: Python, rabbitizer, Groq AI, SDL2, OpenAL, CMake
+
+Built with: Python · rabbitizer · Groq AI · SDL2 · OpenAL · CMake · PyQt6

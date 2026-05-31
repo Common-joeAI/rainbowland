@@ -1,0 +1,103 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Python lint + pipeline test ────────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install rabbitizer
+      - name: Syntax check
+        run: |
+          python -c "
+          import ast, sys, pathlib
+          files = list(pathlib.Path('.').glob('*.py'))
+          failed = []
+          for f in files:
+              try: ast.parse(f.read_text())
+              except SyntaxError as e: failed.append(f'{f}: {e}')
+          if failed:
+              for e in failed: print(e)
+              sys.exit(1)
+          print(f'All {len(files)} Python files OK')
+          "
+      - name: Pipeline smoke test
+        run: python tests/test_pipeline.py
+
+  # ── Windows GUI build (PyInstaller → .exe) ─────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          pip install PyQt6 rabbitizer pyinstaller
+      - name: Build exe
+        run: |
+          pyinstaller --onefile --windowed ^
+            --name "n64recomp" ^
+            --icon assets/icon.ico ^
+            --add-data "hal;hal" ^
+            --add-data "README.md;." ^
+            gui.py
+        shell: cmd
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: n64recomp-windows
+          path: dist/n64recomp.exe
+
+  # ── Release (on tag push) ──────────────────────────────────────────────────
+  release:
+    runs-on: ubuntu-latest
+    needs: build-windows
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: n64recomp-windows
+          path: dist/
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/n64recomp.exe
+          body: |
+            ## n64recomp ${{ github.ref_name }}
+
+            ### Download
+            - **n64recomp.exe** — Windows GUI app (no install needed)
+
+            ### Usage
+            1. Run `n64recomp.exe`
+            2. Drop your `.z64` ROM onto the window
+            3. Optionally enter a Groq API key for AI-enhanced analysis
+            4. Click **Convert ROM**
+            5. Open the output folder and run `build_vs.bat`
+            6. Build in Visual Studio 2022
+
+            ### Requirements to compile the output
+            - Visual Studio 2022 (C++ workload)
+            - CMake 3.20+
+            - SDL2, OpenAL (see SETUP_DEPS.md)
+
+            ### Free Groq key
+            https://console.groq.com — free tier is plenty for most ROMs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

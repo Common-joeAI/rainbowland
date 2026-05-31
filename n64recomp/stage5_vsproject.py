@@ -317,7 +317,7 @@ def generate_vs_project(cg: CodeGenResult,
     print(f"\n  ✅ Project ready at: {out.resolve()}")
     print(f"  → Open a terminal there and run: build_vs.bat")
 
-    return cmake_path
+    return out
 
 
 if __name__ == "__main__":

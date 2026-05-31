@@ -1,0 +1,48 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+*.so
+*.dylib
+
+# n64recomp output
+output/
+generated/
+*.z64
+*.v64
+*.n64
+*.rom
+
+# VS / CMake build artifacts
+CMakeFiles/
+CMakeCache.txt
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.obj
+*.exe
+*.ilk
+*.pdb
+*.lib
+*.exp
+x64/
+Debug/
+Release/
+
+# PyInstaller
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
