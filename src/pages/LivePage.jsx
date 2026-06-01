@@ -226,7 +226,7 @@ export default function LivePage() {
                 </div>
                 <p className="text-white/80 text-sm mb-2">{creator.title}</p>
                 <div className="flex gap-1 flex-wrap">
-                  {creator.tags.map(tag => (
+                  {(creator.hashtags || creator.tags || []).map(tag => (
                     <span key={tag} className="text-rainbow-purple text-xs bg-rainbow-purple/10 px-2 py-0.5 rounded-full">{tag}</span>
                   ))}
                 </div>

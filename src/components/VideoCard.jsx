@@ -138,7 +138,7 @@ export default function VideoCard({ video, isActive }) {
 
         {/* Hashtags */}
         <div className="flex flex-wrap gap-1 mb-2">
-          {video.hashtags.slice(0, 3).map(tag => (
+          {(video.hashtags || video.tags || []).slice(0, 3).map(tag => (
             <span key={tag} className="text-rainbow-blue text-xs font-medium">{tag}</span>
           ))}
         </div>

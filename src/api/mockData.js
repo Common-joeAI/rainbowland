@@ -14,7 +14,7 @@ export const MOCK_VIDEOS = [
     likes:      4821,
     comments:   312,
     shares:     89,
-    tags:       ['pride', 'rainbow', 'lgbtq'],
+    hashtags:   ['pride', 'rainbow', 'lgbtq'],
   },
   {
     id: '2',
@@ -25,7 +25,7 @@ export const MOCK_VIDEOS = [
     likes:      2930,
     comments:   178,
     shares:     55,
-    tags:       ['nonbinary', 'queer', 'pride'],
+    hashtags:   ['nonbinary', 'queer', 'pride'],
   },
   {
     id: '3',
@@ -36,7 +36,7 @@ export const MOCK_VIDEOS = [
     likes:      6104,
     comments:   541,
     shares:     210,
-    tags:       ['trans', 'transjoy', 'pride'],
+    hashtags:   ['trans', 'transjoy', 'pride'],
   },
   {
     id: '4',
@@ -47,7 +47,7 @@ export const MOCK_VIDEOS = [
     likes:      3317,
     comments:   229,
     shares:     77,
-    tags:       ['bisexual', 'bi', 'pride'],
+    hashtags:   ['bisexual', 'bi', 'pride'],
   },
   {
     id: '5',
@@ -58,7 +58,7 @@ export const MOCK_VIDEOS = [
     likes:      5882,
     comments:   403,
     shares:     134,
-    tags:       ['lesbian', 'wlw', 'pride'],
+    hashtags:   ['lesbian', 'wlw', 'pride'],
   },
 ]
 
@@ -71,7 +71,7 @@ export const MOCK_LIVE_CREATORS = [
     thumbnail: '🎤',
     title:     'Late night pride chat — come hang 🏳️‍🌈',
     viewers:   1204,
-    tags:      ['chat', 'pride', 'chill'],
+    hashtags:  ['chat', 'pride', 'chill'],
     prideFlag: 'rainbow',
   },
   {
@@ -82,7 +82,7 @@ export const MOCK_LIVE_CREATORS = [
     thumbnail: '🎮',
     title:     'Gaming with the gays 🕹️ !drops',
     viewers:   3870,
-    tags:      ['gaming', 'queer', 'lgbtq'],
+    hashtags:  ['gaming', 'queer', 'lgbtq'],
     prideFlag: 'nonbinary',
   },
 ]

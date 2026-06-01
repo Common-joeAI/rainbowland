@@ -25,7 +25,7 @@ export default function DiscoverPage() {
   const filtered = query
     ? MOCK_VIDEOS.filter(v =>
         v.caption.toLowerCase().includes(query.toLowerCase()) ||
-        v.hashtags.some(h => h.toLowerCase().includes(query.toLowerCase())) ||
+        (v.hashtags || v.tags || []).some(h => h.toLowerCase().includes(query.toLowerCase())) ||
         v.creator.name.toLowerCase().includes(query.toLowerCase())
       )
     : MOCK_VIDEOS
