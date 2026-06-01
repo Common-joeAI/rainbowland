@@ -13,6 +13,7 @@ import DestinationManager from '../components/studio/DestinationManager'
 import ThemePicker        from '../components/studio/ThemePicker'
 import GPUStatus          from '../components/studio/GPUStatus'
 import DonationPrompt     from '../components/DonationPrompt'
+import RainbowLandLiveLink from '../components/studio/RainbowLandLiveLink'
 
 const DEST_ICONS = {
   rainbowland: '🌈', tiktok: '🎵', youtube: '▶️',
@@ -372,7 +373,8 @@ export default function StudioPage() {
                   </div>
                 )}
                 <div className="p-3">
-                  <DestinationManager />
+                  <RainbowLandLiveLink isLive={isLive} />
+              <DestinationManager />
                 </div>
               </>
             )}

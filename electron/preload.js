@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendChunk:    (id, buf)  => ipcRenderer.invoke('rtmp:chunk',       { destId: id, buffer: buf }),
   streamStatus: ()         => ipcRenderer.invoke('rtmp:status'),
   checkFfmpeg:  ()         => ipcRenderer.invoke('rtmp:check-ffmpeg'),
+  getRlHlsUrl:  ()         => ipcRenderer.invoke('rtmp:rl-hls-url'),
+
+  // RTMP event listener (for rl-stream-ready etc.)
+  onRtmpEvent:  (cb) => ipcRenderer.on('rtmp:event', cb),
+  offRtmpEvent: (cb) => ipcRenderer.removeListener('rtmp:event', cb),
 
   // ── System ────────────────────────────────────────────────
   systemInfo:   ()         => ipcRenderer.invoke('system:info'),

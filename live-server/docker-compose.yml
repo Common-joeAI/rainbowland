@@ -1,18 +1,19 @@
 version: "3.9"
 
 services:
-  live-relay:
+  live-server:
     build: .
-    container_name: rl-live-relay
+    container_name: rl-live
     restart: unless-stopped
     ports:
-      - "4000:4000"   # WebSocket (proxied via Nginx → WSS)
-      - "8080:8080"   # HLS HTTP  (proxied via Nginx → HTTPS)
-    volumes:
-      - hls_data:/tmp/rainbowland-hls
+      - "1935:1935"   # RTMP ingest (from Electron app FFmpeg)
+      - "8080:8080"   # HLS + API  (proxied by Nginx on VPS)
+      - "4000:4000"   # Chat WebSocket
     environment:
-      - WS_PORT=4000
-      - HLS_PORT=8080
+      - PORT=4000
+      - STREAM_SECRET=${STREAM_SECRET:-rl-secret-change-me}
+    volumes:
+      - hls_data:/tmp/rl-hls
 
 volumes:
   hls_data:

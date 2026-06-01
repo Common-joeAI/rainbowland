@@ -130,7 +130,7 @@ parentPort.on('message', (msg) => {
   switch (msg.type) {
 
     case 'start': {
-      const { rtmpBase, key, quality, destId, encoder: encoderInfo } = msg.config
+      const { rtmpBase, rtmpUrl: rtmpUrlDirect, key, quality, destId, encoder: encoderInfo } = msg.config
       const bin = findFfmpeg()
 
       if (!bin) {
@@ -141,7 +141,10 @@ parentPort.on('message', (msg) => {
         return
       }
 
-      const args = buildArgs(rtmpBase, key, quality, encoderInfo)
+      // rtmpUrl from engine already includes key for Rainbow Land
+      const effectiveUrl = rtmpUrlDirect || rtmpBase
+      const effectiveKey = rtmpUrlDirect ? '' : key  // don't double-append key if full URL given
+      const args = buildArgs(effectiveUrl, effectiveKey, quality, encoderInfo)
 
       // Log what encoder we're using
       parentPort.postMessage({

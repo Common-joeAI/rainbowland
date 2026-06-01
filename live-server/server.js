@@ -1,186 +1,173 @@
 /**
- * Rainbow Land — Live Relay Server
- *
- * WebSocket → FFmpeg RTMP → HLS
- *
- * Ports: 4000 (WSS), 8935 (RTMP internal), 8080 (HLS HTTP)
- *
- * Deploy on VPS (live.rainbowland.cc / 107.199.175.81):
- *   cd ~/live-server && npm install && node server.js
+ * Rainbow Land — Live API + Chat Server
+ * Nginx-RTMP handles ingest on :1935 and HLS output to /tmp/rl-hls
+ * This Node.js process handles:
+ *   - RTMP lifecycle callbacks (/rtmp/on_publish, /rtmp/on_done)
+ *   - REST API (/api/streams, /api/stream/:key)
+ *   - WebSocket chat (/ws)
+ *   - Stream key validation
  */
 
+import express      from 'express'
+import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
-import { createServer }    from 'http'
-import { spawn }           from 'child_process'
-import { createReadStream, existsSync, mkdirSync, readdirSync, statSync } from 'fs'
-import { join, extname }  from 'path'
-import express            from 'express'
+import { randomBytes } from 'crypto'
 
-const HLS_DIR  = process.env.HLS_DIR  || '/tmp/rainbowland-hls'
-const WS_PORT  = parseInt(process.env.WS_PORT)  || 4000
-const HLS_PORT = parseInt(process.env.HLS_PORT) || 8080
+const PORT     = parseInt(process.env.PORT) || 4000
+const STREAM_SECRET = process.env.STREAM_SECRET || 'rl-secret-change-me'
 
-mkdirSync(HLS_DIR, { recursive: true })
+const app    = express()
+const server = createServer(app)
+const wss    = new WebSocketServer({ server, path: '/ws' })
 
-// ── Active rooms ────────────────────────────────────────────────
-// Map<roomId, { host: ws, viewers: Set<ws>, ffmpeg, title, startedAt, viewerCount }>
-const rooms = new Map()
+app.use(express.urlencoded({ extended: true }))
+app.use(express.json())
 
-// ── HTTP/HLS server ─────────────────────────────────────────────
-const app = express()
+// ── In-memory stream registry ─────────────────────────────────
+// streamKey → { title, creator, startedAt, viewers }
+const activeStreams = new Map()
 
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  next()
+// streamKey → Set<ws> for chat rooms
+const chatRooms = new Map()
+
+// Pre-issued stream keys: userId → streamKey
+// In production, generate these on user login; here we use a simple map
+const issuedKeys = new Map()
+
+// ── Stream key issuance ───────────────────────────────────────
+app.post('/api/stream-key', (req, res) => {
+  const { userId, secret } = req.body
+  if (secret !== STREAM_SECRET) return res.status(403).json({ error: 'forbidden' })
+  const key = randomBytes(12).toString('hex')
+  issuedKeys.set(userId, key)
+  res.json({
+    streamKey: key,
+    rtmpUrl:   `rtmp://live.rainbowland.cc/live`,
+    hlsUrl:    `https://live.rainbowland.cc/hls/${key}/index.m3u8`,
+  })
 })
 
-// Live rooms list
-app.get('/api/rooms', (req, res) => {
-  const list = []
-  for (const [roomId, room] of rooms.entries()) {
-    list.push({
-      roomId,
-      title:       room.title,
-      viewerCount: room.viewers.size,
-      startedAt:   room.startedAt,
-    })
-  }
-  res.json(list)
+// ── Electron app requests its key (auto-auth via secret) ──────
+app.post('/api/desktop-key', (req, res) => {
+  const { secret, title, creator } = req.body
+  if (secret !== STREAM_SECRET) return res.status(403).json({ error: 'forbidden' })
+  const key = randomBytes(12).toString('hex')
+  // Pre-register the stream with metadata
+  issuedKeys.set(key, { title: title || 'Rainbow Land Live', creator: creator || 'Creator' })
+  res.json({
+    streamKey: key,
+    rtmpUrl:   'rtmp://live.rainbowland.cc/live',
+    hlsUrl:    `https://live.rainbowland.cc/hls/${key}/index.m3u8`,
+  })
 })
 
-// HLS segments + playlists
-app.use('/hls', express.static(HLS_DIR, {
-  setHeaders: (res, path) => {
-    if (path.endsWith('.m3u8')) res.setHeader('Cache-Control', 'no-cache')
-    else                       res.setHeader('Cache-Control', 'max-age=3600')
-  }
-}))
+// ── RTMP lifecycle callbacks from Nginx ───────────────────────
+app.post('/rtmp/on_publish', (req, res) => {
+  const { name } = req.body  // name = stream key
+  console.log(`[RTMP] Stream started: ${name}`)
 
-app.listen(HLS_PORT, () => console.log(`[HTTP] HLS server on :${HLS_PORT}`))
+  const meta = issuedKeys.get(name) || {}
+  activeStreams.set(name, {
+    key:       name,
+    title:     meta.title || 'Live',
+    creator:   meta.creator || 'Anonymous',
+    startedAt: Date.now(),
+    hlsUrl:    `https://live.rainbowland.cc/hls/${name}/index.m3u8`,
+  })
 
-// ── WebSocket server ─────────────────────────────────────────────
-const wss = new WebSocketServer({ port: WS_PORT })
-console.log(`[WS] Relay server on :${WS_PORT}`)
+  chatRooms.set(name, new Set())
 
-function broadcast(roomId, obj, exclude = null) {
-  const room = rooms.get(roomId)
-  if (!room) return
-  const msg = JSON.stringify(obj)
-  for (const viewer of room.viewers) {
-    if (viewer !== exclude && viewer.readyState === 1) viewer.send(msg)
-  }
-}
+  // Notify all connected WS clients that a new stream is live
+  broadcastGlobal({ type: 'stream_start', stream: activeStreams.get(name) })
 
-function broadcastViewerCount(roomId) {
-  const room = rooms.get(roomId)
-  if (!room) return
-  const count = room.viewers.size
-  // tell host
-  if (room.host?.readyState === 1) room.host.send(JSON.stringify({ type: 'viewer_count', count }))
-  // tell viewers
-  broadcast(roomId, { type: 'viewer_count', count })
-}
+  res.sendStatus(200)  // 200 = allow publish
+})
 
-function startFFmpeg(roomId) {
-  const outDir = join(HLS_DIR, roomId)
-  mkdirSync(outDir, { recursive: true })
+app.post('/rtmp/on_done', (req, res) => {
+  const { name } = req.body
+  console.log(`[RTMP] Stream ended: ${name}`)
 
-  const args = [
-    '-re',
-    '-i', 'pipe:0',                   // stdin = webm chunks from browser
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-tune', 'zerolatency',
-    '-b:v', '2000k',
-    '-maxrate', '2500k',
-    '-bufsize', '4000k',
-    '-g', '30',
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    '-f', 'hls',
-    '-hls_time', '2',
-    '-hls_list_size', '10',
-    '-hls_flags', 'delete_segments+append_list',
-    '-hls_segment_filename', join(outDir, 'seg_%03d.ts'),
-    join(outDir, 'index.m3u8'),
-  ]
+  broadcastRoom(name, { type: 'stream_end', key: name })
 
-  const ff = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] })
-  ff.stderr.on('data', d => process.stdout.write(`[ffmpeg:${roomId}] ${d}`))
-  ff.on('close', code => console.log(`[ffmpeg:${roomId}] exited ${code}`))
-  return ff
-}
+  activeStreams.delete(name)
+  chatRooms.delete(name)
+
+  broadcastGlobal({ type: 'stream_end', key: name })
+  res.sendStatus(200)
+})
+
+// ── REST API ──────────────────────────────────────────────────
+app.get('/api/streams', (req, res) => {
+  res.json([...activeStreams.values()])
+})
+
+app.get('/api/stream/:key', (req, res) => {
+  const s = activeStreams.get(req.params.key)
+  if (!s) return res.status(404).json({ error: 'not found' })
+  res.json({ ...s, viewers: chatRooms.get(req.params.key)?.size || 0 })
+})
+
+// ── WebSocket chat ────────────────────────────────────────────
+const globalClients = new Set()
 
 wss.on('connection', (ws) => {
-  let role   = null   // 'host' | 'viewer'
-  let roomId = null
+  globalClients.add(ws)
+  let currentRoom = null
 
-  ws.on('message', (data, isBinary) => {
-    // ── Binary → pipe to ffmpeg ──
-    if (isBinary) {
-      const room = rooms.get(roomId)
-      if (room?.ffmpeg?.stdin.writable) {
-        room.ffmpeg.stdin.write(data)
-      }
-      return
-    }
-
-    // ── JSON control ──
+  ws.on('message', (data) => {
     let msg
     try { msg = JSON.parse(data.toString()) } catch { return }
 
-    if (msg.type === 'host_register') {
-      roomId = msg.roomId
-      role   = 'host'
+    if (msg.type === 'join') {
+      currentRoom = msg.streamKey
+      chatRooms.get(currentRoom)?.add(ws)
+      // Send current viewer count
+      const count = chatRooms.get(currentRoom)?.size || 0
+      broadcastRoom(currentRoom, { type: 'viewer_count', count })
 
-      const ff = startFFmpeg(roomId)
-      rooms.set(roomId, {
-        host:      ws,
-        viewers:   new Set(),
-        ffmpeg:    ff,
-        title:     msg.title || 'Live Stream',
-        startedAt: Date.now(),
-      })
-
-      ws.send(JSON.stringify({ type: 'registered', roomId }))
-      console.log(`[room] ${roomId} started — "${msg.title}"`)
-
-    } else if (msg.type === 'viewer_join') {
-      roomId = msg.roomId
-      role   = 'viewer'
-      const room = rooms.get(roomId)
-      if (!room) { ws.send(JSON.stringify({ type: 'error', message: 'Room not found' })); return }
-      room.viewers.add(ws)
-      broadcastViewerCount(roomId)
+    } else if (msg.type === 'leave') {
+      chatRooms.get(currentRoom)?.delete(ws)
+      currentRoom = null
 
     } else if (msg.type === 'chat') {
-      // relay to all viewers + host
-      const room = rooms.get(msg.roomId || roomId)
-      if (!room) return
-      const chatMsg = JSON.stringify({ type: 'chat', user: msg.user, text: msg.text, ts: Date.now() })
-      room.viewers.forEach(v => v.readyState === 1 && v.send(chatMsg))
-      if (room.host?.readyState === 1) room.host.send(chatMsg)
-
-    } else if (msg.type === 'end_stream') {
-      const room = rooms.get(msg.roomId || roomId)
-      if (!room) return
-      room.ffmpeg?.stdin.end()
-      broadcast(msg.roomId || roomId, { type: 'stream_ended' })
-      rooms.delete(msg.roomId || roomId)
+      if (!currentRoom) return
+      broadcastRoom(currentRoom, {
+        type:   'chat',
+        user:   msg.user  || 'Anonymous',
+        text:   msg.text,
+        color:  msg.color || '#9B59FF',
+        ts:     Date.now(),
+      })
     }
   })
 
   ws.on('close', () => {
-    if (role === 'host' && roomId) {
-      const room = rooms.get(roomId)
-      if (room) {
-        room.ffmpeg?.stdin.end()
-        broadcast(roomId, { type: 'stream_ended' })
-        rooms.delete(roomId)
-      }
-    } else if (role === 'viewer' && roomId) {
-      rooms.get(roomId)?.viewers.delete(ws)
-      broadcastViewerCount(roomId)
+    globalClients.delete(ws)
+    if (currentRoom) {
+      chatRooms.get(currentRoom)?.delete(ws)
+      const count = chatRooms.get(currentRoom)?.size || 0
+      broadcastRoom(currentRoom, { type: 'viewer_count', count })
     }
   })
+
+  // Send current live streams on connect
+  ws.send(JSON.stringify({ type: 'streams', data: [...activeStreams.values()] }))
 })
+
+function broadcastRoom(streamKey, obj) {
+  const room = chatRooms.get(streamKey)
+  if (!room) return
+  const msg = JSON.stringify(obj)
+  for (const client of room) {
+    if (client.readyState === 1) client.send(msg)
+  }
+}
+
+function broadcastGlobal(obj) {
+  const msg = JSON.stringify(obj)
+  for (const client of globalClients) {
+    if (client.readyState === 1) client.send(msg)
+  }
+}
+
+server.listen(PORT, () => console.log(`[API+Chat] listening on :${PORT}`))
