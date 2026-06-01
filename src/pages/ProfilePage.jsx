@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Edit3, Settings, Link, Sparkles, Bot, ChevronDown, Info } from 'lucide-react'
+import { Edit3, Settings, Link, Sparkles, Bot, ChevronDown, Info, Coins, Trophy, TrendingUp, Gift } from 'lucide-react'
+import { fetchEarnings, fetchLeaderboard, getUserId } from '../api/coins'
+import { GIFTS } from '../components/GiftPanel'
 import { useStore } from '../hooks/useStore'
 import { generateBio } from '../api/grok'
 import { MOCK_VIDEOS, formatCount } from '../api/mockData'
@@ -22,6 +24,19 @@ export default function ProfilePage() {
   const [aiPersonality, setAiPersonality]     = useState(() => localStorage.getItem('rl_ai_personality') || 'warm')
   const [aiCustomInstr, setAiCustomInstr]     = useState(() => localStorage.getItem('rl_ai_custom_instr') || '')
   const [aiSaved, setAiSaved]                 = useState(false)
+
+  // Earnings state
+  const [earnings, setEarnings]   = useState(null)
+  const [earningsLoading, setEarningsLoading] = useState(false)
+
+  const loadEarnings = () => {
+    setEarningsLoading(true)
+    fetchEarnings().then(setEarnings).catch(() => setEarnings(null)).finally(() => setEarningsLoading(false))
+  }
+
+  useEffect(() => {
+    if (activeTab === 'earnings') loadEarnings()
+  }, [activeTab])
 
   const saveAiConfig = () => {
     localStorage.setItem('rl_ai_reply_enabled', JSON.stringify(aiReplyEnabled))
@@ -174,7 +189,7 @@ export default function ProfilePage() {
 
         {/* ── Tab nav: Videos / Connections ── */}
         <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }}>
-          {[['profile','My Videos'],['connections','Connections'],['aireply','AI Reply']].map(([id,label]) => (
+          {[['profile','My Videos'],['connections','Connections'],['earnings','Earnings 🪙'],['aireply','AI Reply']].map(([id,label]) => (
             <button key={id} onClick={() => setActiveTab(id)}
               className={clsx('flex-1 py-2 rounded-lg text-sm font-semibold transition-all',
                 activeTab === id ? 'bg-gradient-to-r from-rainbow-pink to-rainbow-purple text-white' : 'text-white/40')}>
@@ -217,6 +232,91 @@ export default function ProfilePage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+
+        {activeTab === 'earnings' && (
+          <div className="px-4 py-4 space-y-4">
+            {earningsLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="w-6 h-6 rounded-full border-2 border-rainbow-purple border-t-transparent animate-spin" />
+              </div>
+            ) : !earnings ? (
+              <div className="text-center py-12 text-white/30 text-sm">
+                <p className="text-3xl mb-2">🪙</p>
+                <p>Start streaming to earn gifts!</p>
+                <p className="text-xs mt-1 text-white/20">Gifts appear here in real-time</p>
+              </div>
+            ) : (
+              <>
+                {/* Balance cards */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 rounded-2xl flex flex-col gap-1"
+                    style={{ background: 'rgba(255,215,0,0.08)', border: '1px solid rgba(255,215,0,0.25)' }}>
+                    <span className="text-white/50 text-xs font-medium">Available Balance</span>
+                    <span className="text-yellow-300 font-black text-2xl">
+                      {(earnings.wallet?.balance || 0).toLocaleString()}
+                    </span>
+                    <span className="text-white/30 text-xs">🪙 coins</span>
+                  </div>
+                  <div className="p-4 rounded-2xl flex flex-col gap-1"
+                    style={{ background: 'rgba(155,89,255,0.08)', border: '1px solid rgba(155,89,255,0.25)' }}>
+                    <span className="text-white/50 text-xs font-medium">All-Time Earned</span>
+                    <span className="text-purple-300 font-black text-2xl">
+                      {(earnings.wallet?.total_earned || 0).toLocaleString()}
+                    </span>
+                    <span className="text-white/30 text-xs">≈ ${((earnings.wallet?.total_earned || 0) / 100).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Cash out note */}
+                <div className="p-3 rounded-xl text-center"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-white/50 text-xs">
+                    Cash out: <span className="text-yellow-300 font-bold">100 coins = $1</span> ·
+                    Contact <span className="text-rainbow-purple">support@rainbowland.cc</span> to withdraw
+                  </p>
+                </div>
+
+                {/* Gifts breakdown */}
+                {earnings.byGift?.length > 0 && (
+                  <div>
+                    <p className="text-white/60 text-xs font-semibold mb-2 flex items-center gap-1.5">
+                      <Gift className="w-3.5 h-3.5" /> Gifts received
+                    </p>
+                    <div className="space-y-2">
+                      {earnings.byGift.map(row => {
+                        const giftDef = GIFTS.find(g => g.id === row.gift_id)
+                        return (
+                          <div key={row.gift_id} className="flex items-center gap-3 p-3 rounded-xl"
+                            style={{ background: 'rgba(255,255,255,0.04)' }}>
+                            {giftDef
+                              ? <img src={giftDef.img} alt={giftDef.name} className="w-9 h-9" />
+                              : <span className="text-2xl w-9 text-center">🎁</span>
+                            }
+                            <div className="flex-1">
+                              <p className="text-white font-bold text-sm">{giftDef?.name || row.gift_id}</p>
+                              <p className="text-white/30 text-xs">{row.count}× received</p>
+                            </div>
+                            <span className="text-yellow-300 font-black text-sm">{row.total.toLocaleString()}🪙</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {earnings.byGift?.length === 0 && (
+                  <p className="text-white/20 text-sm text-center py-4">No gifts yet — go live! 🎁</p>
+                )}
+
+                <button onClick={loadEarnings}
+                  className="w-full py-2.5 rounded-xl text-white/40 text-xs border border-white/8 transition-all active:scale-95">
+                  ↻ Refresh
+                </button>
+              </>
+            )}
           </div>
         )}
 

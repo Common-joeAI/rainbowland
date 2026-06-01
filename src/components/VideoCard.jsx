@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Heart, MessageCircle, Share2, Music2, Volume2, VolumeX, ExternalLink, Disc3 } from 'lucide-react'
 import MutualAidSheet, { MutualAidTrigger, MUTUAL_AID_TAGS, pickOrg } from './MutualAidButton'
-import GiftSheet, { GiftTrigger, CoinBadge, CoinShop, GiftFlyAnimation } from './GiftPanel'
+import GiftSheet, { GiftTrigger, CoinBadge, CoinShop, GiftFlyAnimation, GIFTS } from './GiftPanel'
+import { GiftTickerOverlay, LeaderboardTrigger, LiveLeaderboard } from './LiveGiftTicker'
 import { useStore } from '../hooks/useStore'
 import { formatCount, PRIDE_FLAGS } from '../api/mockData'
 import { loudmanArtistUrl } from '../api/loudman'
@@ -31,6 +32,14 @@ export default function VideoCard({ video, isActive }) {
 
   const handleGiftSuccess = (gift, qty) => {
     setFlyingGift(gift)
+  }
+
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [giftCount, setGiftCount]             = useState(0)
+
+  const handleGiftSuccess2 = (gift, qty) => {
+    setFlyingGift(gift)
+    setGiftCount(c => c + 1)
   }
 
   // Play/pause video based on visibility
@@ -228,8 +237,11 @@ export default function VideoCard({ video, isActive }) {
         {/* Gift button */}
         <GiftTrigger onOpen={() => setShowGift(true)} />
 
+        {/* Leaderboard trigger */}
+        <LeaderboardTrigger onOpen={() => setShowLeaderboard(true)} count={giftCount} />
+
         {/* Coin balance badge */}
-        <CoinBadge coins={coinBalance} onOpenShop={() => setShowCoinShop(true)} />
+        <CoinBadge onOpenShop={() => setShowCoinShop(true)} />
       </div>
 
       {/* Bottom info */}
@@ -301,7 +313,7 @@ export default function VideoCard({ video, isActive }) {
         <GiftSheet
           creator={video.creator}
           streamKey={null}
-          onSendSuccess={handleGiftSuccess}
+          onSendSuccess={handleGiftSuccess2}
           onOpenShop={() => { setShowGift(false); setShowCoinShop(true) }}
           onClose={() => setShowGift(false)}
         />
@@ -310,6 +322,14 @@ export default function VideoCard({ video, isActive }) {
       {/* Coin shop */}
       {showCoinShop && (
         <CoinShop onClose={() => setShowCoinShop(false)} />
+      )}
+
+      {/* Live gift ticker (real-time gifts from WebSocket) */}
+      <GiftTickerOverlay streamKey={null} />
+
+      {/* Top gifters leaderboard */}
+      {showLeaderboard && (
+        <LiveLeaderboard streamKey={null} onClose={() => setShowLeaderboard(false)} />
       )}
 
       {/* Flying gift animation */}
