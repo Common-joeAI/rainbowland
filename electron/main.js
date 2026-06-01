@@ -182,6 +182,8 @@ function createWindow() {
   mainWindow.webContents.on('dom-ready', () => {
     mainWindow.show()
     mainWindow.focus()
+    // Temporarily open devtools to diagnose black screen
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
   })
 
   mainWindow.once('ready-to-show', () => {
