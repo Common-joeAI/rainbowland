@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  background: #050508;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ── Rainbow gradient text ───────────────────────────── */
+.rainbow-text {
+  background: linear-gradient(90deg,
+    #FF3366, #FF7A00, #FFD700, #00E676, #00B4FF, #9B59FF, #FF69B4, #FF3366);
+  background-size: 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-x 4s ease infinite;
+}
+
+/* ── Rainbow border glow ─────────────────────────────── */
+.rainbow-border {
+  position: relative;
+}
+.rainbow-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(90deg,
+    #FF3366, #FF7A00, #FFD700, #00E676, #00B4FF, #9B59FF, #FF69B4, #FF3366);
+  background-size: 200%;
+  animation: rainbow-border 3s linear infinite;
+  z-index: -1;
+}
+
+/* ── Scrollable feed area ────────────────────────────── */
+.feed-scroll {
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+}
+.feed-scroll::-webkit-scrollbar { display: none; }
+
+.feed-item {
+  height: 100vh;
+  scroll-snap-align: start;
+  position: relative;
+}
+
+/* ── Glass card ──────────────────────────────────────── */
+.glass {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ── Pride flag strip ────────────────────────────────── */
+.pride-strip {
+  height: 3px;
+  background: linear-gradient(90deg,
+    #FF3366 0%,
+    #FF7A00 16.6%,
+    #FFD700 33.2%,
+    #00E676 49.8%,
+    #00B4FF 66.4%,
+    #9B59FF 83%,
+    #FF69B4 100%);
+}
+
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes rainbow-border {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 20px rgba(155,89,255,0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 40px rgba(155,89,255,0.8); }
+}
