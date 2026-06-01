@@ -17,9 +17,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build Windows
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npm run build:win
+        run: npm run build:win -- --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: windows-build
@@ -35,9 +33,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Build Linux
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npm run build:linux
+        run: npm run build:linux -- --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: linux-build
@@ -70,9 +66,8 @@ jobs:
           iconutil -c icns electron/assets/icon.iconset -o electron/assets/icon.icns
       - name: Build macOS
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npm run build:mac
+        run: npm run build:mac -- --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: mac-build
@@ -90,9 +85,13 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+      - name: List artifacts
+        run: find artifacts -type f | sort
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          name: Rainbow Land ${{ github.ref_name }}
+          draft: false
+          prerelease: false
           files: artifacts/**/*
           token: ${{ secrets.GH_TOKEN }}

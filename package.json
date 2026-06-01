@@ -53,11 +53,6 @@
     "directories": {
       "output": "dist-electron"
     },
-    "publish": {
-      "provider": "github",
-      "owner": "Common-joeAI",
-      "repo": "rainbowland"
-    },
     "files": [
       "dist/**/*",
       "electron/**/*",
