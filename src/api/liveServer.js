@@ -9,11 +9,11 @@
  */
 
 // Will be live.darkkeangelzz.live once DNS A record is added
-export const LIVE_SERVER_URL = 'https://live.darkkeangelzz.live'
-export const LIVE_SERVER_HTTP = 'https://live.darkkeangelzz.live'  // CF tunnel
+export const LIVE_SERVER_URL = 'https://live.rainbowland.cc'
+export const LIVE_SERVER_HTTP = 'https://live.rainbowland.cc'
 
 export const RTMP_INGEST = 'rtmp://67.38.45.238:1935/live'
-export const HLS_BASE    = 'https://live.darkkeangelzz.live/hls/live'
+export const HLS_BASE    = 'https://live.rainbowland.cc/hls/live'
 
 /** Get the HLS URL for a stream key */
 export function hlsUrl(streamKey) {
