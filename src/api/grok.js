@@ -62,7 +62,25 @@ Respond ONLY with JSON: {"safe": true/false, "reason": "brief explanation"}`
 }
 
 /** Generate a personalized comment reply */
-export async function generateReply(comment, creatorName) {
-  const msg = `You are ${creatorName}, an LGBT+ creator on Rainbow Land. Write a warm, authentic 1-sentence reply to this comment: "${comment}". Keep it under 80 chars, be genuine and inclusive.`
-  return grokChat([{ role: 'user', content: msg }], { max_tokens: 80 })
+export async function generateReply(comment, creatorName, opts = {}) {
+  if (!XAI_KEY) throw new Error('Missing XAI key')
+
+  const personality = opts.personality || localStorage.getItem('rl_ai_personality') || 'warm'
+  const customInstr = opts.customInstr  || localStorage.getItem('rl_ai_custom_instr') || ''
+
+  const personalityMap = {
+    warm:      'warm, caring, and affirming',
+    hype:      'enthusiastic, high-energy, and hyped up',
+    witty:     'witty, playful, and a bit clever',
+    authentic: 'authentic, chill, and real — no corporate vibes',
+  }
+  const tone = personalityMap[personality] || personalityMap.warm
+
+  const msg = `You are ${creatorName}, an LGBT+ creator on Rainbow Land.
+Your reply style: ${tone}.
+${customInstr ? `Additional instructions: ${customInstr}` : ''}
+Write a genuine 1-sentence reply (max 90 chars) to this comment: "${comment}"
+Be inclusive, never preachy. Just sound like a real person.`
+
+  return grokChat([{ role: 'user', content: msg }], { max_tokens: 90 })
 }
