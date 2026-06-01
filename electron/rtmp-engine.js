@@ -18,8 +18,8 @@ const path         = require('path')
 const { detectGPUEncoder, clearCache, findFfmpeg } = require('./gpu-detect')
 
 const WORKER_PATH   = path.join(__dirname, 'workers', 'rtmp-worker.js')
-const RL_LIVE_HOST  = process.env.RL_LIVE_HOST   || 'live.rainbowland.cc'
-const RL_SECRET     = process.env.RL_STREAM_SECRET || 'rl-secret-change-me'
+const RL_LIVE_HOST  = process.env.RL_LIVE_HOST   || 'live.darkkeangelzz.live'
+const RL_SECRET     = process.env.RL_STREAM_SECRET || 'rl-rainbowland-2026'
 
 // ── Workers map: destId → { worker, status, stats, encoder } ─
 const workers = new Map()
