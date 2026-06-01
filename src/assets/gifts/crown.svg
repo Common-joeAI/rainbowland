@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="cg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#FFB800"/>
+    </linearGradient>
+  </defs>
+  <!-- crown body -->
+  <path d="M15 85 L20 45 L40 65 L60 25 L80 65 L100 45 L105 85 Z" fill="url(#cg)" stroke="#CC8800" stroke-width="2" stroke-linejoin="round"/>
+  <!-- band -->
+  <rect x="15" y="80" width="90" height="14" rx="4" fill="#CC8800"/>
+  <rect x="15" y="80" width="90" height="6" rx="3" fill="#FFE066"/>
+  <!-- gems -->
+  <circle cx="60" cy="52" r="7" fill="#FF4B6E"/>
+  <circle cx="60" cy="52" r="4" fill="#FF8FAB"/>
+  <circle cx="32" cy="70" r="5" fill="#1E90FF"/>
+  <circle cx="88" cy="70" r="5" fill="#00C800"/>
+  <!-- dots on band -->
+  <circle cx="40" cy="87" r="3" fill="#FFE066"/>
+  <circle cx="60" cy="87" r="3" fill="#FFE066"/>
+  <circle cx="80" cy="87" r="3" fill="#FFE066"/>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="dg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8F8FF"/>
+      <stop offset="50%" stop-color="#A8EFFF"/>
+      <stop offset="100%" stop-color="#00C3FF"/>
+    </linearGradient>
+    <linearGradient id="dg2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#00C3FF" stop-opacity="0.3"/>
+    </linearGradient>
+    <filter id="dglow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <!-- main gem -->
+  <polygon points="60,15 95,45 60,105 25,45" fill="url(#dg1)" filter="url(#dglow)" stroke="#A8EFFF" stroke-width="1"/>
+  <!-- top face -->
+  <polygon points="60,15 95,45 60,50 25,45" fill="url(#dg2)"/>
+  <!-- inner facets -->
+  <line x1="60" y1="15" x2="60" y2="105" stroke="white" stroke-width="0.5" opacity="0.4"/>
+  <line x1="25" y1="45" x2="95" y2="45" stroke="white" stroke-width="0.5" opacity="0.4"/>
+  <line x1="60" y1="15" x2="25" y2="45" stroke="white" stroke-width="0.5" opacity="0.3"/>
+  <line x1="60" y1="15" x2="95" y2="45" stroke="white" stroke-width="0.5" opacity="0.3"/>
+  <!-- sparkle -->
+  <circle cx="45" cy="35" r="3" fill="white" opacity="0.9"/>
+  <circle cx="75" cy="30" r="2" fill="white" opacity="0.7"/>
+</svg>

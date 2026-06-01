@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <filter id="glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <!-- clouds -->
+  <ellipse cx="22" cy="80" rx="18" ry="12" fill="white" opacity="0.95"/>
+  <ellipse cx="32" cy="75" rx="14" ry="10" fill="white" opacity="0.95"/>
+  <ellipse cx="98" cy="80" rx="18" ry="12" fill="white" opacity="0.95"/>
+  <ellipse cx="88" cy="75" rx="14" ry="10" fill="white" opacity="0.95"/>
+  <!-- rainbow arcs -->
+  <path d="M18 78 Q60 15 102 78" stroke="#FF0000" stroke-width="7" fill="none" filter="url(#glow)"/>
+  <path d="M22 78 Q60 22 98 78" stroke="#FF8C00" stroke-width="7" fill="none" filter="url(#glow)"/>
+  <path d="M26 78 Q60 29 94 78" stroke="#FFD700" stroke-width="7" fill="none" filter="url(#glow)"/>
+  <path d="M30 78 Q60 36 90 78" stroke="#00C800" stroke-width="7" fill="none" filter="url(#glow)"/>
+  <path d="M34 78 Q60 43 86 78" stroke="#1E90FF" stroke-width="7" fill="none" filter="url(#glow)"/>
+  <path d="M38 78 Q60 50 82 78" stroke="#8B00FF" stroke-width="7" fill="none" filter="url(#glow)"/>
+  <!-- stars -->
+  <circle cx="60" cy="28" r="3" fill="white" opacity="0.8"/>
+  <circle cx="40" cy="20" r="2" fill="white" opacity="0.6"/>
+  <circle cx="80" cy="20" r="2" fill="white" opacity="0.6"/>
+</svg>

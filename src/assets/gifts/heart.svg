@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <radialGradient id="hg" cx="50%" cy="30%">
+      <stop offset="0%" stop-color="#D8A0FF"/>
+      <stop offset="100%" stop-color="#7B2FBE"/>
+    </radialGradient>
+    <filter id="hglow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <path d="M60 95 C60 95 15 65 15 40 C15 25 28 15 42 18 C50 20 57 26 60 32 C63 26 70 20 78 18 C92 15 105 25 105 40 C105 65 60 95 60 95 Z" fill="url(#hg)" filter="url(#hglow)"/>
+  <!-- shine -->
+  <ellipse cx="42" cy="34" rx="10" ry="6" fill="white" opacity="0.25" transform="rotate(-20 42 34)"/>
+  <!-- small hearts -->
+  <path d="M25 25 C25 25 18 20 18 16 C18 13 21 11 24 13 C25 13.5 25.5 14.5 25 15 C24.5 14.5 25 13.5 26 13 C29 11 32 13 32 16 C32 20 25 25 25 25Z" fill="#D8A0FF" opacity="0.6" transform="scale(0.7) translate(12,8)"/>
+  <path d="M95 80 C95 80 88 75 88 71 C88 68 91 66 94 68 C95 68.5 95.5 69.5 95 70 C94.5 69.5 95 68.5 96 68 C99 66 102 68 102 71 C102 75 95 80 95 80Z" fill="#D8A0FF" opacity="0.5" transform="scale(0.6) translate(65,55)"/>
+</svg>

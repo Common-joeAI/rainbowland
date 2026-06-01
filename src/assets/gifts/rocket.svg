@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="rocket-body" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E0EAFF"/>
+      <stop offset="100%" stop-color="#B0C4FF"/>
+    </linearGradient>
+    <radialGradient id="flame" cx="50%" cy="0%">
+      <stop offset="0%" stop-color="#FFD700"/>
+      <stop offset="60%" stop-color="#FF6B00"/>
+      <stop offset="100%" stop-color="#FF0000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- flame -->
+  <ellipse cx="60" cy="100" rx="12" ry="20" fill="url(#flame)" opacity="0.9"/>
+  <ellipse cx="55" cy="100" rx="7" ry="14" fill="#FFD700" opacity="0.6"/>
+  <!-- fins -->
+  <path d="M48 80 L35 100 L52 88 Z" fill="#00C3FF"/>
+  <path d="M72 80 L85 100 L68 88 Z" fill="#00C3FF"/>
+  <!-- body -->
+  <rect x="47" y="38" width="26" height="52" rx="8" fill="url(#rocket-body)"/>
+  <!-- nose -->
+  <path d="M47 42 Q60 10 73 42 Z" fill="#00C3FF"/>
+  <!-- window -->
+  <circle cx="60" cy="62" r="10" fill="#1E90FF"/>
+  <circle cx="60" cy="62" r="7" fill="#87CEEB"/>
+  <ellipse cx="57" cy="59" rx="3" ry="2" fill="white" opacity="0.6"/>
+  <!-- stripe -->
+  <rect x="47" y="74" width="26" height="5" fill="#FF4B6E" opacity="0.7"/>
+</svg>

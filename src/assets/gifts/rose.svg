@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <radialGradient id="rg" cx="50%" cy="40%">
+      <stop offset="0%" stop-color="#FF8FAB"/>
+      <stop offset="100%" stop-color="#C9184A"/>
+    </radialGradient>
+    <radialGradient id="ctr" cx="50%" cy="50%">
+      <stop offset="0%" stop-color="#FFB3C6"/>
+      <stop offset="100%" stop-color="#FF4D6D"/>
+    </radialGradient>
+  </defs>
+  <!-- stem -->
+  <path d="M60 95 Q55 80 60 68" stroke="#2D6A4F" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <!-- leaf -->
+  <ellipse cx="52" cy="82" rx="10" ry="5" fill="#40916C" transform="rotate(-30 52 82)"/>
+  <!-- outer petals -->
+  <ellipse cx="60" cy="55" rx="18" ry="22" fill="url(#rg)" opacity="0.9"/>
+  <ellipse cx="45" cy="60" rx="14" ry="18" fill="url(#rg)" opacity="0.85" transform="rotate(-30 45 60)"/>
+  <ellipse cx="75" cy="60" rx="14" ry="18" fill="url(#rg)" opacity="0.85" transform="rotate(30 75 60)"/>
+  <ellipse cx="50" cy="44" rx="13" ry="17" fill="url(#rg)" opacity="0.9" transform="rotate(-15 50 44)"/>
+  <ellipse cx="70" cy="44" rx="13" ry="17" fill="url(#rg)" opacity="0.9" transform="rotate(15 70 44)"/>
+  <!-- center -->
+  <circle cx="60" cy="57" r="10" fill="url(#ctr)"/>
+  <circle cx="60" cy="55" r="5" fill="#FFB3C6" opacity="0.7"/>
+</svg>

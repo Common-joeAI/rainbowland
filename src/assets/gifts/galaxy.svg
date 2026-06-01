@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <radialGradient id="gg" cx="50%" cy="50%">
+      <stop offset="0%" stop-color="#FF6FD8"/>
+      <stop offset="40%" stop-color="#9B59FF"/>
+      <stop offset="80%" stop-color="#3B0B8C"/>
+      <stop offset="100%" stop-color="#0D0020"/>
+    </radialGradient>
+    <filter id="gglow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <circle cx="60" cy="60" r="55" fill="url(#gg)"/>
+  <!-- spiral arms -->
+  <path d="M60 60 Q80 40 95 25" stroke="#FF6FD8" stroke-width="6" fill="none" opacity="0.6" stroke-linecap="round" filter="url(#gglow)"/>
+  <path d="M60 60 Q40 80 25 95" stroke="#FF6FD8" stroke-width="6" fill="none" opacity="0.6" stroke-linecap="round" filter="url(#gglow)"/>
+  <path d="M60 60 Q85 70 105 80" stroke="#9B59FF" stroke-width="4" fill="none" opacity="0.5" stroke-linecap="round"/>
+  <path d="M60 60 Q35 50 15 40" stroke="#9B59FF" stroke-width="4" fill="none" opacity="0.5" stroke-linecap="round"/>
+  <!-- core -->
+  <circle cx="60" cy="60" r="14" fill="#FF6FD8" filter="url(#gglow)"/>
+  <circle cx="60" cy="60" r="7" fill="white" opacity="0.9"/>
+  <!-- stars -->
+  <circle cx="30" cy="28" r="2" fill="white" opacity="0.9"/>
+  <circle cx="90" cy="35" r="1.5" fill="white" opacity="0.8"/>
+  <circle cx="20" cy="75" r="1.5" fill="white" opacity="0.7"/>
+  <circle cx="100" cy="80" r="2" fill="white" opacity="0.9"/>
+  <circle cx="75" cy="95" r="1.5" fill="white" opacity="0.6"/>
+  <circle cx="45" cy="18" r="1" fill="white" opacity="0.8"/>
+  <circle cx="95" cy="55" r="1" fill="white" opacity="0.7"/>
+</svg>
