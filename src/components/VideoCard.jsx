@@ -8,7 +8,7 @@ import clsx from 'clsx'
 export default function VideoCard({ video, isActive }) {
   const videoRef = useRef(null)
   const audioRef = useRef(null)
-  const { toggleLike, isLiked, setShowComments, isMuted, toggleMute } = useStore()
+  const { toggleLike, isLiked, setShowComments, setActiveVideoId, isMuted, toggleMute } = useStore()
   const liked = isLiked(video.id)
   const [localLikes, setLocalLikes] = useState(video.likes)
   const [showHeart, setShowHeart] = useState(false)
@@ -186,7 +186,7 @@ export default function VideoCard({ video, isActive }) {
 
         {/* Comment */}
         <div className="flex flex-col items-center gap-1">
-          <button onClick={() => setShowComments(true)} className="p-1">
+          <button onClick={(e) => { e.stopPropagation(); setActiveVideoId(video.id); setShowComments(true); }} className="p-1">
             <MessageCircle className="w-8 h-8 text-white" />
           </button>
           <span className="text-white text-xs font-semibold">{formatCount(video.comments)}</span>
