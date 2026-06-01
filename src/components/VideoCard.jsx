@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { Heart, MessageCircle, Share2, Music2, Volume2, VolumeX, ExternalLink } from 'lucide-react'
+import { Heart, MessageCircle, Share2, Music2, Volume2, VolumeX, ExternalLink, Disc3 } from 'lucide-react'
 import { useStore } from '../hooks/useStore'
 import { formatCount } from '../api/mockData'
 import { loudmanArtistUrl } from '../api/loudman'
@@ -7,14 +7,18 @@ import clsx from 'clsx'
 
 export default function VideoCard({ video, isActive }) {
   const videoRef = useRef(null)
-  const { toggleLike, isLiked, setShowComments, isMuted, toggleMute, setTab } = useStore()
+  const audioRef = useRef(null)
+  const { toggleLike, isLiked, setShowComments, isMuted, toggleMute } = useStore()
   const liked = isLiked(video.id)
   const [localLikes, setLocalLikes] = useState(video.likes)
   const [showHeart, setShowHeart] = useState(false)
   const [doubleTapTimer, setDoubleTapTimer] = useState(null)
 
-  // Play/pause based on visibility
+  const isAudio = video.type === 'audio'
+
+  // Play/pause video based on visibility
   useEffect(() => {
+    if (isAudio) return
     const el = videoRef.current
     if (!el) return
     if (isActive) {
@@ -23,11 +27,29 @@ export default function VideoCard({ video, isActive }) {
       el.pause()
       el.currentTime = 0
     }
-  }, [isActive])
+  }, [isActive, isAudio])
 
-  // Sync mute
+  // Play/pause audio based on visibility
+  useEffect(() => {
+    if (!isAudio) return
+    const el = audioRef.current
+    if (!el) return
+    if (isActive) {
+      el.play().catch(() => {})
+    } else {
+      el.pause()
+      el.currentTime = 0
+    }
+  }, [isActive, isAudio])
+
+  // Sync mute for video
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = isMuted
+  }, [isMuted])
+
+  // Sync mute for audio
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.muted = isMuted
   }, [isMuted])
 
   const handleLike = useCallback(() => {
@@ -39,7 +61,6 @@ export default function VideoCard({ video, isActive }) {
     }
   }, [liked, toggleLike, video.id])
 
-  // Double-tap to like
   const handleTap = useCallback(() => {
     if (doubleTapTimer) {
       clearTimeout(doubleTapTimer)
@@ -53,16 +74,66 @@ export default function VideoCard({ video, isActive }) {
 
   return (
     <div className="feed-item bg-dark-900 relative overflow-hidden" onClick={handleTap}>
-      {/* Video */}
-      <video
-        ref={videoRef}
-        src={video.videoUrl}
-        className="absolute inset-0 w-full h-full object-cover"
-        loop
-        playsInline
-        muted={isMuted}
-        preload="metadata"
-      />
+
+      {/* ── MEDIA LAYER ───────────────────────────────────────── */}
+      {isAudio ? (
+        <>
+          {/* Cover art background */}
+          <div className="absolute inset-0">
+            {video.music?.coverArt ? (
+              <img
+                src={video.music.coverArt}
+                alt="Cover art"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              /* Fallback gradient when no cover art */
+              <div className="w-full h-full bg-gradient-to-br from-rainbow-purple via-rainbow-pink to-rainbow-orange" />
+            )}
+            {/* Darken so text is readable */}
+            <div className="absolute inset-0 bg-black/50" />
+          </div>
+
+          {/* Spinning disc in center */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className={clsx(
+              "w-40 h-40 rounded-full shadow-2xl border-4 border-white/10 flex items-center justify-center",
+              isActive ? "animate-spin" : ""
+            )} style={{ animationDuration: '4s' }}>
+              {video.music?.coverArt ? (
+                <img
+                  src={video.music.coverArt}
+                  alt="Disc"
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <Disc3 className="w-24 h-24 text-white/60" />
+              )}
+            </div>
+            {/* Center hole */}
+            <div className="absolute w-6 h-6 rounded-full bg-dark-900 border-2 border-white/20" />
+          </div>
+
+          {/* Hidden audio element — src would be Loudman stream URL in production */}
+          <audio
+            ref={audioRef}
+            src={video.audioUrl || ''}
+            loop
+            muted={isMuted}
+            preload="none"
+          />
+        </>
+      ) : (
+        <video
+          ref={videoRef}
+          src={video.videoUrl}
+          className="absolute inset-0 w-full h-full object-cover"
+          loop
+          playsInline
+          muted={isMuted}
+          preload="metadata"
+        />
+      )}
 
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
@@ -74,7 +145,7 @@ export default function VideoCard({ video, isActive }) {
         </div>
       )}
 
-      {/* Mute toggle (top right) */}
+      {/* Mute toggle */}
       <button
         className="absolute top-16 right-4 z-10 p-2 glass rounded-full"
         onClick={e => { e.stopPropagation(); toggleMute() }}
@@ -83,6 +154,14 @@ export default function VideoCard({ video, isActive }) {
           ? <VolumeX className="w-5 h-5 text-white/80" />
           : <Volume2 className="w-5 h-5 text-white/80" />}
       </button>
+
+      {/* Audio badge */}
+      {isAudio && (
+        <div className="absolute top-16 left-4 z-10 flex items-center gap-1.5 glass rounded-full px-3 py-1">
+          <Music2 className="w-3.5 h-3.5 text-rainbow-yellow" />
+          <span className="text-white/80 text-xs font-medium">Audio</span>
+        </div>
+      )}
 
       {/* Right-side action buttons */}
       <div className="absolute right-3 bottom-28 z-10 flex flex-col items-center gap-5" onClick={e => e.stopPropagation()}>
@@ -124,7 +203,6 @@ export default function VideoCard({ video, isActive }) {
 
       {/* Bottom info */}
       <div className="absolute bottom-20 left-4 right-16 z-10">
-        {/* Creator name */}
         <div className="flex items-center gap-2 mb-1">
           <span className="font-bold text-white text-base">{video.creator.name}</span>
           {video.creator.verified && (
@@ -133,31 +211,31 @@ export default function VideoCard({ video, isActive }) {
           <span className="text-white/50 text-xs">{video.creator.pronouns}</span>
         </div>
 
-        {/* Caption */}
         <p className="text-white/90 text-sm mb-2 leading-snug line-clamp-2">{video.caption}</p>
 
-        {/* Hashtags */}
         <div className="flex flex-wrap gap-1 mb-2">
           {(video.hashtags || video.tags || []).slice(0, 3).map(tag => (
             <span key={tag} className="text-rainbow-blue text-xs font-medium">{tag}</span>
           ))}
         </div>
 
-        {/* Music strip — Loudman integration */}
-        <a
-          href={loudmanArtistUrl(video.music?.loudmanHandle)}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="flex items-center gap-2 glass rounded-full px-3 py-1.5 w-fit" onClick={e => e.stopPropagation()}
-        >
-          <Music2 className="w-4 h-4 text-rainbow-yellow animate-spin" style={{ animationDuration: '3s' }} />
-          <span className="text-white text-xs truncate max-w-[160px]">{video.music?.title || "Unknown"} · {video.music?.artist || ""}</span>
-          <ExternalLink className="w-3 h-3 text-white/40 flex-shrink-0" />
-        </a>
+        {/* Music strip */}
+        {video.music && (
+          <a
+            href={loudmanArtistUrl(video.music?.loudmanHandle)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="flex items-center gap-2 glass rounded-full px-3 py-1.5 w-fit"
+          >
+            <Music2 className={clsx('w-4 h-4 text-rainbow-yellow', isActive && 'animate-spin')} style={{ animationDuration: '3s' }} />
+            <span className="text-white text-xs truncate max-w-[160px]">{video.music?.title || 'Unknown'} · {video.music?.artist || ''}</span>
+            <ExternalLink className="w-3 h-3 text-white/40 flex-shrink-0" />
+          </a>
+        )}
       </div>
 
-      {/* Pride strip at very bottom */}
+      {/* Pride strip */}
       <div className="absolute bottom-16 left-0 right-0 pride-strip z-10" />
     </div>
   )
