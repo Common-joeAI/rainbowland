@@ -159,9 +159,17 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:3000')
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
-    const indexPath = path.join(__dirname, '..', 'dist', 'index.html')
+    // app.getAppPath() resolves correctly even inside asar packaging
+    const indexPath = path.join(app.getAppPath(), 'dist', 'index.html')
+    console.log('[BOOT] Loading:', indexPath)
     mainWindow.loadFile(indexPath).catch(err => {
-      console.error('Failed to load:', indexPath, err)
+      console.error('[BOOT] Failed to load:', indexPath, err)
+      // Try fallback relative path
+      const fallback = path.join(__dirname, '..', 'dist', 'index.html')
+      console.log('[BOOT] Trying fallback:', fallback)
+      mainWindow.loadFile(fallback).catch(err2 => {
+        console.error('[BOOT] Fallback also failed:', err2)
+      })
     })
   }
 
