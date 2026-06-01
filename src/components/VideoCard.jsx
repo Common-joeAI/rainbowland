@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Heart, MessageCircle, Share2, Music2, Volume2, VolumeX, ExternalLink, Disc3 } from 'lucide-react'
+import MutualAidSheet, { MutualAidTrigger, MUTUAL_AID_TAGS, pickOrg } from './MutualAidButton'
 import { useStore } from '../hooks/useStore'
 import { formatCount, PRIDE_FLAGS } from '../api/mockData'
 import { loudmanArtistUrl } from '../api/loudman'
@@ -15,6 +16,12 @@ export default function VideoCard({ video, isActive }) {
   const [doubleTapTimer, setDoubleTapTimer] = useState(null)
 
   const isAudio = video.type === 'audio'
+
+  // Mutual Aid — show button if video has relevant tags
+  const videoTags = (video.hashtags || []).map(t => t.toLowerCase().replace('#',''))
+  const hasMutualAidTag = videoTags.some(t => MUTUAL_AID_TAGS.includes(t))
+  const mutualAidOrg = hasMutualAidTag ? pickOrg(video.hashtags) : null
+  const [showMutualAid, setShowMutualAid] = useState(false)
 
   // Play/pause video based on visibility
   useEffect(() => {
@@ -199,6 +206,14 @@ export default function VideoCard({ video, isActive }) {
           </button>
           <span className="text-white text-xs font-semibold">{formatCount(video.shares)}</span>
         </div>
+
+        {/* Mutual Aid — only shows on tagged videos */}
+        {hasMutualAidTag && mutualAidOrg && (
+          <MutualAidTrigger
+            color={mutualAidOrg.color}
+            onOpen={() => { setShowMutualAid(true) }}
+          />
+        )}
       </div>
 
       {/* Bottom info */}
@@ -259,6 +274,11 @@ export default function VideoCard({ video, isActive }) {
 
       {/* Pride strip */}
       <div className="absolute bottom-16 left-0 right-0 pride-strip z-10" />
+
+      {/* Mutual Aid donation sheet */}
+      {showMutualAid && mutualAidOrg && (
+        <MutualAidSheet org={mutualAidOrg} onClose={() => setShowMutualAid(false)} />
+      )}
     </div>
   )
 }

@@ -76,6 +76,18 @@ export const MOCK_VIDEOS = [
     hashtags:   ['lesbian', 'wlw', 'pride'],
     music:      { title: 'WLW Summer', artist: 'Atlas Audio', loudmanHandle: 'atlasaudio' },
   },
+  {
+    id: '6',
+    creator:    { name: 'Zara Phoenix',  handle: '@zaraphoenix', avatar: '🔥', prideFlag: 'trans',     pronouns: 'she/her'   },
+    videoUrl:   'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_5mb.mp4',
+    thumbnail:  '',
+    caption:    'Trans mutual aid saves lives 💙🩷🤍 tap the 💜 Aid button to help a sis out #TransMutualAid #trans',
+    likes:      9241,
+    comments:   834,
+    shares:     512,
+    hashtags:   ['transmutualaid', 'trans', 'mutualaid', 'pride'],
+    music:      { title: 'Rise Up', artist: 'Phoenix Collective', loudmanHandle: 'phoenixcollective' },
+  },
 ]
 
 export const MOCK_LIVE_CREATORS = [
