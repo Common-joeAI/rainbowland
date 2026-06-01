@@ -15,6 +15,7 @@ export const MOCK_VIDEOS = [
     comments:   312,
     shares:     89,
     hashtags:   ['pride', 'rainbow', 'lgbtq'],
+    music:      { title: "Rainbow Frequency", artist: "Nova Collective", loudmanHandle: "novacollective" },
   },
   {
     id: '2',
@@ -26,6 +27,7 @@ export const MOCK_VIDEOS = [
     comments:   178,
     shares:     55,
     hashtags:   ['nonbinary', 'queer', 'pride'],
+    music:      { title: "Moonrise Drift", artist: "Lunar Vibe", loudmanHandle: "lunarvibe" },
   },
   {
     id: '3',
@@ -37,6 +39,7 @@ export const MOCK_VIDEOS = [
     comments:   541,
     shares:     210,
     hashtags:   ['trans', 'transjoy', 'pride'],
+    music:      { title: "Trans Euphoria", artist: "Sage Sound", loudmanHandle: "sagesound" },
   },
   {
     id: '4',
@@ -48,6 +51,7 @@ export const MOCK_VIDEOS = [
     comments:   229,
     shares:     77,
     hashtags:   ['bisexual', 'bi', 'pride'],
+    music:      { title: "Bisexual Lighting", artist: "Lyric Beats", loudmanHandle: "lyricbeats" },
   },
   {
     id: '5',
@@ -59,6 +63,7 @@ export const MOCK_VIDEOS = [
     comments:   403,
     shares:     134,
     hashtags:   ['lesbian', 'wlw', 'pride'],
+    music:      { title: "WLW Summer", artist: "Atlas Audio", loudmanHandle: "atlasaudio" },
   },
 ]
 

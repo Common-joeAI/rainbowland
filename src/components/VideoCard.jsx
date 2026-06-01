@@ -145,14 +145,14 @@ export default function VideoCard({ video, isActive }) {
 
         {/* Music strip — Loudman integration */}
         <a
-          href={loudmanArtistUrl(video.music.loudmanHandle)}
+          href={loudmanArtistUrl(video.music?.loudmanHandle)}
           target="_blank"
           rel="noopener noreferrer"
           onClick={e => e.stopPropagation()}
-          className="flex items-center gap-2 glass rounded-full px-3 py-1.5 w-fit"
+          className="flex items-center gap-2 glass rounded-full px-3 py-1.5 w-fit" onClick={e => e.stopPropagation()}
         >
           <Music2 className="w-4 h-4 text-rainbow-yellow animate-spin" style={{ animationDuration: '3s' }} />
-          <span className="text-white text-xs truncate max-w-[160px]">{video.music.title} · {video.music.artist}</span>
+          <span className="text-white text-xs truncate max-w-[160px]">{video.music?.title || "Unknown"} · {video.music?.artist || ""}</span>
           <ExternalLink className="w-3 h-3 text-white/40 flex-shrink-0" />
         </a>
       </div>
