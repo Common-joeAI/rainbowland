@@ -2,14 +2,23 @@
   "name": "rainbowland",
   "version": "1.0.0",
   "private": true,
-  "description": "Rainbow Land — Pride-Themed Desktop Streaming Studio for LGBT+ Creators",
-  "author": "Common-joeAI",
+  "description": "Rainbow Land — Free live streaming studio built for LGBT+ creators",
+  "author": {
+    "name": "Common-joeAI",
+    "email": "support@rainbowland.cc",
+    "url": "https://rainbowland.cc"
+  },
   "main": "electron/main.js",
+  "homepage": "https://rainbowland.cc",
   "scripts": {
     "dev": "vite",
     "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:3000 && electron .\"",
     "build": "vite build",
     "build:electron": "vite build && electron-builder",
+    "build:win": "vite build && electron-builder --win",
+    "build:mac": "vite build && electron-builder --mac",
+    "build:linux": "vite build && electron-builder --linux",
+    "release": "vite build && electron-builder --publish always",
     "preview": "vite preview",
     "electron": "electron ."
   },
@@ -40,8 +49,14 @@
   "build": {
     "appId": "cc.rainbowland.app",
     "productName": "Rainbow Land",
+    "copyright": "Copyright © 2026 Rainbow Land",
     "directories": {
       "output": "dist-electron"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Common-joeAI",
+      "repo": "rainbowland"
     },
     "files": [
       "dist/**/*",
@@ -52,36 +67,37 @@
       {
         "from": "electron/assets",
         "to": "assets",
-        "filter": [
-          "**/*"
-        ]
+        "filter": ["**/*"]
       }
     ],
     "mac": {
       "category": "public.app-category.entertainment",
       "icon": "electron/assets/icon.icns",
-      "target": [
-        "dmg",
-        "zip"
-      ]
+      "target": [{ "target": "dmg", "arch": ["x64","arm64"] }, { "target": "zip", "arch": ["x64","arm64"] }]
     },
     "win": {
       "icon": "electron/assets/icon.ico",
       "target": [
-        "nsis",
-        "portable"
+        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
       ]
     },
     "linux": {
       "icon": "electron/assets/icon.png",
+      "category": "AudioVideo",
       "target": [
-        "AppImage",
-        "deb"
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb",      "arch": ["x64"] }
       ]
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "electron/assets/icon.ico",
+      "uninstallerIcon": "electron/assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Rainbow Land"
     }
   }
 }
