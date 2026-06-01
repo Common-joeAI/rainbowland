@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Heart, MessageCircle, Share2, Music2, Volume2, VolumeX, ExternalLink, Disc3 } from 'lucide-react'
 import { useStore } from '../hooks/useStore'
-import { formatCount } from '../api/mockData'
+import { formatCount, PRIDE_FLAGS } from '../api/mockData'
 import { loudmanArtistUrl } from '../api/loudman'
 import clsx from 'clsx'
 
@@ -203,12 +203,34 @@ export default function VideoCard({ video, isActive }) {
 
       {/* Bottom info */}
       <div className="absolute bottom-20 left-4 right-16 z-10">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span className="font-bold text-white text-base">{video.creator.name}</span>
           {video.creator.verified && (
             <span className="text-xs bg-gradient-to-r from-rainbow-blue to-rainbow-purple px-1.5 py-0.5 rounded-full text-white font-semibold">✓</span>
           )}
-          <span className="text-white/50 text-xs">{video.creator.pronouns}</span>
+          {/* Pronoun badge */}
+          {video.creator.pronouns && (
+            <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+              style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              {video.creator.pronouns}
+            </span>
+          )}
+          {/* Pride flag stripe badge */}
+          {video.creator.prideFlag && PRIDE_FLAGS[video.creator.prideFlag] && (
+            <span
+              title={video.creator.prideFlag}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium overflow-hidden"
+              style={{
+                background: `linear-gradient(90deg, ${PRIDE_FLAGS[video.creator.prideFlag].colors.join(',')})`,
+                color: '#fff',
+                textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                fontWeight: 700,
+                fontSize: 10,
+              }}
+            >
+              {PRIDE_FLAGS[video.creator.prideFlag].emoji}
+            </span>
+          )}
         </div>
 
         <p className="text-white/90 text-sm mb-2 leading-snug line-clamp-2">{video.caption}</p>

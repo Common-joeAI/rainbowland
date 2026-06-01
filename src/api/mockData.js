@@ -1,13 +1,24 @@
 /**
  * Mock video feed + user data — replace with real backend later.
  * All creators are fictional.
- * Using Cloudflare Stream sample / public domain videos (no auth required).
  */
+
+// Maps pride flag identity → emoji + gradient colors
+export const PRIDE_FLAGS = {
+  rainbow:   { emoji: '🏳️‍🌈', colors: ['#E40303','#FF8C00','#FFED00','#008026','#004DFF','#750787'] },
+  trans:     { emoji: '⚧️',    colors: ['#55CDFC','#F7A8B8','#FFFFFF','#F7A8B8','#55CDFC'] },
+  nonbinary: { emoji: '🏳️',   colors: ['#FCF434','#FFFFFF','#9C59D1','#2D2D2D'] },
+  bisexual:  { emoji: '💜',    colors: ['#D60270','#D60270','#9B4F96','#0038A8','#0038A8'] },
+  lesbian:   { emoji: '🧡',    colors: ['#D52D00','#EF7627','#FF9A56','#FFFFFF','#D162A4','#B55690','#A50062'] },
+  pan:       { emoji: '💛',    colors: ['#FF218C','#FFD800','#21B1FF'] },
+  ace:       { emoji: '🖤',    colors: ['#000000','#A4A4A4','#FFFFFF','#810081'] },
+  enby:      { emoji: '💛',    colors: ['#FCF434','#FFFFFF','#9C59D1','#2D2D2D'] },
+}
 
 export const MOCK_VIDEOS = [
   {
     id: '1',
-    creator:    { name: 'Nova Starr',    handle: '@novastarr',   avatar: '🌟', prideFlag: 'rainbow'  },
+    creator:    { name: 'Nova Starr',    handle: '@novastarr',   avatar: '🌟', prideFlag: 'rainbow',   pronouns: 'she/her'   },
     videoUrl:   'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
     thumbnail:  '',
     caption:    '✨ Pride is every day, not just June 🏳️‍🌈 #pride #rainbow',
@@ -15,11 +26,11 @@ export const MOCK_VIDEOS = [
     comments:   312,
     shares:     89,
     hashtags:   ['pride', 'rainbow', 'lgbtq'],
-    music:      { title: "Rainbow Frequency", artist: "Nova Collective", loudmanHandle: "novacollective" },
+    music:      { title: 'Rainbow Frequency', artist: 'Nova Collective', loudmanHandle: 'novacollective' },
   },
   {
     id: '2',
-    creator:    { name: 'River Moon',    handle: '@rivermoon',   avatar: '🌙', prideFlag: 'nonbinary' },
+    creator:    { name: 'River Moon',    handle: '@rivermoon',   avatar: '🌙', prideFlag: 'nonbinary', pronouns: 'they/them' },
     videoUrl:   'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_2mb.mp4',
     thumbnail:  '',
     caption:    'Non-binary and thriving 💛🤍💜🖤 #nonbinary #queer',
@@ -27,11 +38,11 @@ export const MOCK_VIDEOS = [
     comments:   178,
     shares:     55,
     hashtags:   ['nonbinary', 'queer', 'pride'],
-    music:      { title: "Moonrise Drift", artist: "Lunar Vibe", loudmanHandle: "lunarvibe" },
+    music:      { title: 'Moonrise Drift', artist: 'Lunar Vibe', loudmanHandle: 'lunarvibe' },
   },
   {
     id: '3',
-    creator:    { name: 'Sage Flores',   handle: '@sageflores',  avatar: '🌿', prideFlag: 'trans'    },
+    creator:    { name: 'Sage Flores',   handle: '@sageflores',  avatar: '🌿', prideFlag: 'trans',     pronouns: 'he/him'    },
     videoUrl:   'https://www.w3schools.com/html/mov_bbb.mp4',
     thumbnail:  '',
     caption:    'Trans joy is the best joy 🏳️‍⚧️💖 #trans #transjoy',
@@ -39,11 +50,11 @@ export const MOCK_VIDEOS = [
     comments:   541,
     shares:     210,
     hashtags:   ['trans', 'transjoy', 'pride'],
-    music:      { title: "Trans Euphoria", artist: "Sage Sound", loudmanHandle: "sagesound" },
+    music:      { title: 'Trans Euphoria', artist: 'Sage Sound', loudmanHandle: 'sagesound' },
   },
   {
     id: '4',
-    creator:    { name: 'Lyric Chen',    handle: '@lyricchen',   avatar: '🎵', prideFlag: 'bisexual' },
+    creator:    { name: 'Lyric Chen',    handle: '@lyricchen',   avatar: '🎵', prideFlag: 'bisexual',  pronouns: 'she/they'  },
     videoUrl:   'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4',
     thumbnail:  '',
     caption:    'Bisexual lighting hits different 💜💙💗 #bi #bisexual',
@@ -51,11 +62,11 @@ export const MOCK_VIDEOS = [
     comments:   229,
     shares:     77,
     hashtags:   ['bisexual', 'bi', 'pride'],
-    music:      { title: "Bisexual Lighting", artist: "Lyric Beats", loudmanHandle: "lyricbeats" },
+    music:      { title: 'Bisexual Lighting', artist: 'Lyric Beats', loudmanHandle: 'lyricbeats' },
   },
   {
     id: '5',
-    creator:    { name: 'Atlas Rey',     handle: '@atlasrey',    avatar: '🗺️', prideFlag: 'lesbian'  },
+    creator:    { name: 'Atlas Rey',     handle: '@atlasrey',    avatar: '🗺️', prideFlag: 'lesbian',   pronouns: 'she/her'   },
     videoUrl:   'https://media.w3.org/2010/05/sintel/trailer_hd.mp4',
     thumbnail:  '',
     caption:    'Lesbian visibility every single day 🧡🤍💗 #lesbian #wlw',
@@ -63,7 +74,7 @@ export const MOCK_VIDEOS = [
     comments:   403,
     shares:     134,
     hashtags:   ['lesbian', 'wlw', 'pride'],
-    music:      { title: "WLW Summer", artist: "Atlas Audio", loudmanHandle: "atlasaudio" },
+    music:      { title: 'WLW Summer', artist: 'Atlas Audio', loudmanHandle: 'atlasaudio' },
   },
 ]
 
@@ -78,6 +89,7 @@ export const MOCK_LIVE_CREATORS = [
     viewers:   1204,
     hashtags:  ['chat', 'pride', 'chill'],
     prideFlag: 'rainbow',
+    pronouns:  'she/her',
   },
   {
     id: 'l2',
@@ -89,6 +101,7 @@ export const MOCK_LIVE_CREATORS = [
     viewers:   3870,
     hashtags:  ['gaming', 'queer', 'lgbtq'],
     prideFlag: 'nonbinary',
+    pronouns:  'they/them',
   },
 ]
 
@@ -109,4 +122,11 @@ export const MOCK_TRENDING_TAGS = [
   { tag: 'neon',          count: 143900 },
   { tag: 'music',         count: 132100 },
   { tag: 'aesthetic',     count: 118700 },
+]
+
+// Tags considered safe — SafeSpace mode only shows content tagged with these
+export const SAFESPACE_TRUSTED_TAGS = [
+  'pride', 'lgbtq', 'rainbow', 'trans', 'transjoy', 'nonbinary',
+  'queer', 'bisexual', 'bi', 'lesbian', 'wlw', 'mlm', 'ace',
+  'pan', 'enby', 'rainbowland', 'safespace', 'inclusive',
 ]
