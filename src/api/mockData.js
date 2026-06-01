@@ -92,3 +92,16 @@ export const formatCount = (n) => {
   if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`
   return String(n)
 }
+
+export const MOCK_TRENDING_TAGS = [
+  { tag: 'rainbowland',   count: 482100 },
+  { tag: 'vibes',         count: 312400 },
+  { tag: 'lofi',          count: 298700 },
+  { tag: 'gaming',        count: 245300 },
+  { tag: 'chill',         count: 198200 },
+  { tag: 'livestream',    count: 187600 },
+  { tag: 'creator',       count: 165400 },
+  { tag: 'neon',          count: 143900 },
+  { tag: 'music',         count: 132100 },
+  { tag: 'aesthetic',     count: 118700 },
+]
