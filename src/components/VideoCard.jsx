@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Heart, MessageCircle, Share2, Music2, Volume2, VolumeX, ExternalLink, Disc3 } from 'lucide-react'
 import MutualAidSheet, { MutualAidTrigger, MUTUAL_AID_TAGS, pickOrg } from './MutualAidButton'
+import GiftSheet, { GiftTrigger, CoinBadge, CoinShop, GiftFlyAnimation, GIFTS } from './GiftPanel'
 import { useStore } from '../hooks/useStore'
 import { formatCount, PRIDE_FLAGS } from '../api/mockData'
 import { loudmanArtistUrl } from '../api/loudman'
@@ -9,7 +10,7 @@ import clsx from 'clsx'
 export default function VideoCard({ video, isActive }) {
   const videoRef = useRef(null)
   const audioRef = useRef(null)
-  const { toggleLike, isLiked, setShowComments, setActiveVideoId, isMuted, toggleMute } = useStore()
+  const { toggleLike, isLiked, setShowComments, setActiveVideoId, isMuted, toggleMute, coinBalance, sendGift, addCoins } = useStore()
   const liked = isLiked(video.id)
   const [localLikes, setLocalLikes] = useState(video.likes)
   const [showHeart, setShowHeart] = useState(false)
@@ -22,6 +23,17 @@ export default function VideoCard({ video, isActive }) {
   const hasMutualAidTag = videoTags.some(t => MUTUAL_AID_TAGS.includes(t))
   const mutualAidOrg = hasMutualAidTag ? pickOrg(video.hashtags) : null
   const [showMutualAid, setShowMutualAid] = useState(false)
+
+  // Gift state
+  const [showGift, setShowGift] = useState(false)
+  const [showCoinShop, setShowCoinShop] = useState(false)
+  const [flyingGift, setFlyingGift] = useState(null)
+
+  const handleSendGift = (gift, qty) => {
+    sendGift(video.creator.handle, gift.id, qty, gift.coins * qty)
+    setFlyingGift(gift)
+    setShowGift(false)
+  }
 
   // Play/pause video based on visibility
   useEffect(() => {
@@ -214,6 +226,12 @@ export default function VideoCard({ video, isActive }) {
             onOpen={() => { setShowMutualAid(true) }}
           />
         )}
+
+        {/* Gift button */}
+        <GiftTrigger onOpen={() => setShowGift(true)} />
+
+        {/* Coin balance badge */}
+        <CoinBadge coins={coinBalance} onOpenShop={() => setShowCoinShop(true)} />
       </div>
 
       {/* Bottom info */}
@@ -278,6 +296,30 @@ export default function VideoCard({ video, isActive }) {
       {/* Mutual Aid donation sheet */}
       {showMutualAid && mutualAidOrg && (
         <MutualAidSheet org={mutualAidOrg} onClose={() => setShowMutualAid(false)} />
+      )}
+
+      {/* Gift sheet */}
+      {showGift && (
+        <GiftSheet
+          creator={video.creator}
+          coinBalance={coinBalance}
+          onSend={handleSendGift}
+          onOpenShop={() => { setShowGift(false); setShowCoinShop(true) }}
+          onClose={() => setShowGift(false)}
+        />
+      )}
+
+      {/* Coin shop */}
+      {showCoinShop && (
+        <CoinShop
+          onClose={() => setShowCoinShop(false)}
+          onBought={(n) => { addCoins(n) }}
+        />
+      )}
+
+      {/* Flying gift animation */}
+      {flyingGift && (
+        <GiftFlyAnimation gift={flyingGift} onDone={() => setFlyingGift(null)} />
       )}
     </div>
   )

@@ -95,6 +95,22 @@ export const useStore = create(
       safeSpaceEnabled: false,
       toggleSafeSpace: () => set((s) => ({ safeSpaceEnabled: !s.safeSpaceEnabled })),
 
+      // ── Gifts & Coins ──────────────────────────────────────────
+      coinBalance: 0,
+      addCoins: (n) => set((s) => ({ coinBalance: s.coinBalance + n })),
+      sendGift: (creatorHandle, giftId, qty, coinCost) =>
+        set((s) => ({
+          coinBalance: Math.max(0, s.coinBalance - coinCost),
+          giftsReceived: {
+            ...s.giftsReceived,
+            [creatorHandle]: [
+              ...(s.giftsReceived[creatorHandle] || []),
+              { giftId, qty, ts: Date.now() },
+            ],
+          },
+        })),
+      giftsReceived: {},
+
       // ── Stream destinations ───────────────────────────────────
       destinations: {
         rainbowland: { enabled: true,  label: 'Rainbow Land',  color: '#9B59FF', icon: '🌈', rtmpBase: 'rtmp://live.rainbowland.cc/live' },
@@ -162,6 +178,8 @@ export const useStore = create(
         likedCommentIds:  s.likedCommentIds,
         safeSpaceEnabled: s.safeSpaceEnabled,
         notifications:    s.notifications,
+        coinBalance:      s.coinBalance,
+        giftsReceived:    s.giftsReceived,
       }),
     }
   )
