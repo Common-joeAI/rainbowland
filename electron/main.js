@@ -182,8 +182,19 @@ function createWindow() {
   mainWindow.webContents.on('dom-ready', () => {
     mainWindow.show()
     mainWindow.focus()
-    // Temporarily open devtools to diagnose black screen
-    mainWindow.webContents.openDevTools({ mode: 'detach' })
+    // DevTools hidden in production — unlock with Ctrl+Shift+Alt+D
+  })
+
+  // Secret key combo to open DevTools: Ctrl+Shift+Alt+D
+  const { globalShortcut } = require('electron')
+  globalShortcut.register('CommandOrControl+Shift+Alt+D', () => {
+    if (mainWindow && mainWindow.webContents) {
+      if (mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools()
+      } else {
+        mainWindow.webContents.openDevTools({ mode: 'detach' })
+      }
+    }
   })
 
   mainWindow.once('ready-to-show', () => {
@@ -386,3 +397,5 @@ ipcMain.handle('tiktok:disconnect', () => {
   deleteTikTokToken()
   return { ok: true }
 })
+
+app.on('will-quit', () => { require('electron').globalShortcut.unregisterAll() })

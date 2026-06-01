@@ -8,7 +8,7 @@ export const MOCK_VIDEOS = [
   {
     id: '1',
     creator:    { name: 'Nova Starr',    handle: '@novastarr',   avatar: '🌟', prideFlag: 'rainbow'  },
-    videoUrl:   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    videoUrl:   'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
     thumbnail:  '',
     caption:    '✨ Pride is every day, not just June 🏳️‍🌈 #pride #rainbow',
     likes:      4821,
@@ -20,7 +20,7 @@ export const MOCK_VIDEOS = [
   {
     id: '2',
     creator:    { name: 'River Moon',    handle: '@rivermoon',   avatar: '🌙', prideFlag: 'nonbinary' },
-    videoUrl:   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    videoUrl:   'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_2mb.mp4',
     thumbnail:  '',
     caption:    'Non-binary and thriving 💛🤍💜🖤 #nonbinary #queer',
     likes:      2930,
@@ -32,7 +32,7 @@ export const MOCK_VIDEOS = [
   {
     id: '3',
     creator:    { name: 'Sage Flores',   handle: '@sageflores',  avatar: '🌿', prideFlag: 'trans'    },
-    videoUrl:   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    videoUrl:   'https://www.w3schools.com/html/mov_bbb.mp4',
     thumbnail:  '',
     caption:    'Trans joy is the best joy 🏳️‍⚧️💖 #trans #transjoy',
     likes:      6104,
@@ -44,7 +44,7 @@ export const MOCK_VIDEOS = [
   {
     id: '4',
     creator:    { name: 'Lyric Chen',    handle: '@lyricchen',   avatar: '🎵', prideFlag: 'bisexual' },
-    videoUrl:   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    videoUrl:   'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4',
     thumbnail:  '',
     caption:    'Bisexual lighting hits different 💜💙💗 #bi #bisexual',
     likes:      3317,
@@ -56,7 +56,7 @@ export const MOCK_VIDEOS = [
   {
     id: '5',
     creator:    { name: 'Atlas Rey',     handle: '@atlasrey',    avatar: '🗺️', prideFlag: 'lesbian'  },
-    videoUrl:   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+    videoUrl:   'https://media.w3.org/2010/05/sintel/trailer_hd.mp4',
     thumbnail:  '',
     caption:    'Lesbian visibility every single day 🧡🤍💗 #lesbian #wlw',
     likes:      5882,
