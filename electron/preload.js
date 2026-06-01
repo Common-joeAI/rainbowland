@@ -1,35 +1,44 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
-/**
- * Expose a safe, typed API to the renderer (React app)
- * via window.electronAPI
- */
 contextBridge.exposeInMainWorld('electronAPI', {
-  // ── Platform ───────────────────────────────────────────
+  // ── Platform ──────────────────────────────────────────────
   isElectron: true,
   platform:   process.platform,
 
-  // ── Settings ───────────────────────────────────────────
-  getSettings:  ()           => ipcRenderer.invoke('settings:get'),
-  saveSettings: (settings)   => ipcRenderer.invoke('settings:set', settings),
+  // ── Settings ──────────────────────────────────────────────
+  getSettings:  ()         => ipcRenderer.invoke('settings:get'),
+  saveSettings: (s)        => ipcRenderer.invoke('settings:set', s),
 
-  // ── RTMP secrets (encrypted) ───────────────────────────
-  getSecrets:   ()           => ipcRenderer.invoke('secrets:get'),
-  saveSecrets:  (secrets)    => ipcRenderer.invoke('secrets:set', secrets),
+  // ── RTMP secrets (OS keychain encrypted) ──────────────────
+  getSecrets:   ()         => ipcRenderer.invoke('secrets:get'),
+  saveSecrets:  (s)        => ipcRenderer.invoke('secrets:set', s),
 
-  // ── System info ────────────────────────────────────────
-  systemInfo:   ()           => ipcRenderer.invoke('system:info'),
+  // ── GPU / encoder ─────────────────────────────────────────
+  detectGPU:    ()         => ipcRenderer.invoke('rtmp:detect-gpu'),
+  redetectGPU:  ()         => ipcRenderer.invoke('rtmp:redetect-gpu'),
 
-  // ── Window controls ────────────────────────────────────
-  minimize:     ()           => ipcRenderer.invoke('window:minimize'),
-  maximize:     ()           => ipcRenderer.invoke('window:maximize'),
-  close:        ()           => ipcRenderer.invoke('window:close'),
-  isMaximized:  ()           => ipcRenderer.invoke('window:isMaximized'),
+  // ── Streaming ─────────────────────────────────────────────
+  startStream:  (opts)     => ipcRenderer.invoke('rtmp:start',       opts),
+  stopStream:   ()         => ipcRenderer.invoke('rtmp:stop'),
+  stopOne:      (destId)   => ipcRenderer.invoke('rtmp:stop-one',    destId),
+  sendChunkAll: (buf)      => ipcRenderer.invoke('rtmp:chunk-all',   { buffer: buf }),
+  sendChunk:    (id, buf)  => ipcRenderer.invoke('rtmp:chunk',       { destId: id, buffer: buf }),
+  streamStatus: ()         => ipcRenderer.invoke('rtmp:status'),
+  checkFfmpeg:  ()         => ipcRenderer.invoke('rtmp:check-ffmpeg'),
 
-  // ── Shell ──────────────────────────────────────────────
-  openExternal: (url)        => ipcRenderer.invoke('shell:openExternal', url),
+  // ── System ────────────────────────────────────────────────
+  systemInfo:   ()         => ipcRenderer.invoke('system:info'),
 
-  // ── Events from main → renderer ────────────────────────
-  on:  (channel, fn) => ipcRenderer.on(channel, (_, ...args) => fn(...args)),
-  off: (channel, fn) => ipcRenderer.removeListener(channel, fn),
+  // ── Window controls ───────────────────────────────────────
+  minimize:     ()         => ipcRenderer.invoke('window:minimize'),
+  maximize:     ()         => ipcRenderer.invoke('window:maximize'),
+  close:        ()         => ipcRenderer.invoke('window:close'),
+  isMaximized:  ()         => ipcRenderer.invoke('window:isMaximized'),
+
+  // ── Shell ─────────────────────────────────────────────────
+  openExternal: (url)      => ipcRenderer.invoke('shell:openExternal', url),
+
+  // ── Events: main → renderer ───────────────────────────────
+  on:  (ch, fn) => ipcRenderer.on(ch, (_, ...args) => fn(...args)),
+  off: (ch, fn) => ipcRenderer.removeListener(ch, fn),
 })

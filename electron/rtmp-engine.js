@@ -1,61 +1,55 @@
 /**
  * Rainbow Land Multi-Threaded RTMP Engine
  *
- * Uses Node.js worker_threads — one Worker per streaming destination.
- * Each Worker is completely isolated:
- *   - its own ffmpeg process
- *   - its own stdin/stderr pipe
- *   - crashes in one worker NEVER affect others
+ * One Worker thread per destination (isolated crash domains).
+ * GPU encoder detected once at startup and reused across all workers.
  *
- * Main thread is purely a router:
- *   renderer chunks → broadcast to all workers → ffmpeg → RTMP
- *
- * This is the opposite of TikTok Studio's single-threaded model.
- * A 500ms freeze in one destination doesn't stutter any other.
+ * Encoder priority:
+ *   NVIDIA → h264_nvenc  (NVENC)
+ *   AMD    → h264_amf    (AMF/VCE)
+ *   Intel  → h264_qsv    (Quick Sync)
+ *   Apple  → h264_videotoolbox
+ *   CPU    → libx264 veryfast (fallback)
  */
 
-const { ipcMain }              = require('electron')
-const { Worker, MessageChannel } = require('worker_threads')
-const path                     = require('path')
-const which                    = require('which')
+const { ipcMain }  = require('electron')
+const { Worker }   = require('worker_threads')
+const path         = require('path')
+const { detectGPUEncoder, clearCache, findFfmpeg } = require('./gpu-detect')
 
 const WORKER_PATH = path.join(__dirname, 'workers', 'rtmp-worker.js')
 
-// ── Active workers: destId → { worker, status, stats } ───────
+// ── Workers map: destId → { worker, status, stats, encoder } ─
 const workers = new Map()
 
-// ── Find ffmpeg (used for the health check IPC only) ──────────
-async function findFfmpeg() {
-  const candidates = [
-    path.join(__dirname, '..', 'ffmpeg', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
-  ]
-  for (const c of candidates) {
-    try { require('fs').accessSync(c); return c } catch {}
-  }
-  try { return await which('ffmpeg') } catch {}
-  return null
-}
+// ── Cached GPU result (set on first rtmp:start or rtmp:detect) ─
+let gpuInfo = null
 
-// ── Spawn a worker for one destination ───────────────────────
+// ── Spawn an isolated worker for one destination ──────────────
 function spawnWorker(destId, config, senderRef) {
-  // Clean up any existing worker for this dest
+  // Kill any existing worker for this dest
   if (workers.has(destId)) {
     try { workers.get(destId).worker.terminate() } catch {}
     workers.delete(destId)
   }
 
   const worker = new Worker(WORKER_PATH)
-  const state  = { worker, status: 'starting', stats: {} }
+  const state  = {
+    worker,
+    status:  'starting',
+    stats:   {},
+    encoder: config.encoder?.encoder || 'libx264',
+  }
   workers.set(destId, state)
 
-  // Forward all messages from worker → renderer
   worker.on('message', (msg) => {
-    state.stats = msg.type === 'stats' ? { ...state.stats, ...msg } : state.stats
+    // Update local state
+    if (msg.type === 'stats')   Object.assign(state.stats, msg)
     if (msg.type === 'ready')   state.status = 'streaming'
     if (msg.type === 'stopped') state.status = 'stopped'
     if (msg.type === 'error')   state.status = 'error'
 
-    // Safe send — renderer might have navigated away
+    // Forward to renderer
     try { senderRef.send('rtmp:event', msg) } catch {}
   })
 
@@ -69,15 +63,63 @@ function spawnWorker(destId, config, senderRef) {
     try { senderRef.send('rtmp:event', { type: 'stopped', destId, code }) } catch {}
   })
 
-  // Tell worker to start
-  worker.postMessage({ type: 'start', config: { ...config, destId } })
-
+  worker.postMessage({ type: 'start', config })
   return state
 }
 
-// ── IPC: Start all enabled destinations ──────────────────────
-ipcMain.handle('rtmp:start', async (event, { destinations, secrets, quality }) => {
-  const sender  = event.sender
+// ── IPC: Detect GPU encoder (call from settings page) ─────────
+ipcMain.handle('rtmp:detect-gpu', async () => {
+  gpuInfo = await detectGPUEncoder()
+  return {
+    encoder:    gpuInfo.encoder,
+    label:      gpuInfo.label,
+    icon:       gpuInfo.icon,
+    vendor:     gpuInfo.vendor,
+    isFallback: gpuInfo.isFallback,
+    available:  gpuInfo.available,
+    allResults: (gpuInfo.allResults || []).map(r => ({
+      encoder:   r.encoder,
+      label:     r.label,
+      icon:      r.icon,
+      supported: r.supported,
+      reason:    r.reason,
+    })),
+    ffmpegPath: gpuInfo.ffmpegPath,
+  }
+})
+
+// ── IPC: Force re-detect (e.g. after installing drivers) ──────
+ipcMain.handle('rtmp:redetect-gpu', async () => {
+  clearCache()
+  gpuInfo = null
+  return ipcMain.handle['rtmp:detect-gpu']()
+})
+
+// ── IPC: Start streaming to all enabled destinations ──────────
+ipcMain.handle('rtmp:start', async (event, { destinations, secrets, quality, encoderOverride }) => {
+  const sender = event.sender
+
+  // Detect GPU if not already done
+  if (!gpuInfo) {
+    gpuInfo = await detectGPUEncoder()
+  }
+
+  // Allow per-stream encoder override (advanced users)
+  const activeEncoder = encoderOverride
+    ? (gpuInfo.allResults || []).find(r => r.encoder === encoderOverride && r.supported) || gpuInfo
+    : gpuInfo
+
+  // Notify renderer which encoder we're using
+  try {
+    sender.send('rtmp:event', {
+      type:     'encoder-selected',
+      encoder:  activeEncoder.encoder,
+      label:    activeEncoder.label,
+      icon:     activeEncoder.icon,
+      isFallback: activeEncoder.isFallback,
+    })
+  } catch {}
+
   const started = []
   const failed  = []
 
@@ -96,6 +138,7 @@ ipcMain.handle('rtmp:start', async (event, { destinations, secrets, quality }) =
         key:     secrets?.[destId] || dest.key || '',
         quality: quality || {},
         destId,
+        encoder: activeEncoder,   // full encoder info passed to worker
       }, sender)
 
       started.push(destId)
@@ -104,40 +147,35 @@ ipcMain.handle('rtmp:start', async (event, { destinations, secrets, quality }) =
     }
   }
 
-  return { ok: true, started, failed }
+  return { ok: true, started, failed, encoder: activeEncoder.encoder, encoderLabel: activeEncoder.label }
 })
 
 // ── IPC: Stop all ─────────────────────────────────────────────
 ipcMain.handle('rtmp:stop', async () => {
-  for (const [destId, { worker }] of workers) {
+  for (const [, { worker }] of workers) {
     try {
       worker.postMessage({ type: 'stop' })
-      // Give it 3s to close gracefully, then terminate
-      setTimeout(() => { try { worker.terminate() } catch {} }, 3000)
+      setTimeout(() => { try { worker.terminate() } catch {} }, 3500)
     } catch {}
   }
   workers.clear()
   return { ok: true }
 })
 
-// ── IPC: Stop one destination ─────────────────────────────────
+// ── IPC: Stop one ─────────────────────────────────────────────
 ipcMain.handle('rtmp:stop-one', async (_, destId) => {
   const entry = workers.get(destId)
   if (entry) {
     try { entry.worker.postMessage({ type: 'stop' }) } catch {}
-    setTimeout(() => { try { entry.worker.terminate() } catch {} }, 3000)
+    setTimeout(() => { try { entry.worker.terminate() } catch {} }, 3500)
     workers.delete(destId)
   }
   return { ok: true }
 })
 
-// ── IPC: Route a video chunk to ALL active workers ────────────
-// This is the hot path — keep it minimal.
-// Each worker is a separate thread, so writes are truly parallel.
+// ── IPC: Broadcast chunk to ALL workers (hot path) ────────────
 ipcMain.handle('rtmp:chunk-all', (_, { buffer }) => {
-  if (workers.size === 0) return
-  // Re-use the same Buffer across all workers (zero-copy with SharedArrayBuffer
-  // would be even better, but Buffer.from is fast enough at 250ms chunks)
+  if (!workers.size) return
   const buf = Buffer.from(buffer)
   for (const [, { worker, status }] of workers) {
     if (status === 'streaming' || status === 'starting') {
@@ -146,7 +184,7 @@ ipcMain.handle('rtmp:chunk-all', (_, { buffer }) => {
   }
 })
 
-// ── IPC: Route a chunk to ONE specific worker ─────────────────
+// ── IPC: Single destination chunk ────────────────────────────
 ipcMain.handle('rtmp:chunk', (_, { destId, buffer }) => {
   const entry = workers.get(destId)
   if (!entry) return
@@ -155,16 +193,16 @@ ipcMain.handle('rtmp:chunk', (_, { destId, buffer }) => {
 
 // ── IPC: Status of all workers ────────────────────────────────
 ipcMain.handle('rtmp:status', () => {
-  const status = {}
-  for (const [destId, { status: s, stats }] of workers) {
-    status[destId] = { status: s, ...stats }
+  const out = {}
+  for (const [id, { status, stats, encoder }] of workers) {
+    out[id] = { status, encoder, ...stats }
   }
-  return status
+  return out
 })
 
-// ── IPC: ffmpeg presence check ────────────────────────────────
+// ── IPC: ffmpeg check ─────────────────────────────────────────
 ipcMain.handle('rtmp:check-ffmpeg', async () => {
-  const bin = await findFfmpeg()
+  const bin = findFfmpeg()
   return { found: !!bin, path: bin }
 })
 

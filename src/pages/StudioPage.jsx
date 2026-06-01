@@ -11,6 +11,7 @@ import { useStore }   from '../hooks/useStore'
 import { useTheme }   from '../hooks/useTheme'
 import DestinationManager from '../components/studio/DestinationManager'
 import ThemePicker        from '../components/studio/ThemePicker'
+import GPUStatus          from '../components/studio/GPUStatus'
 
 const DEST_ICONS = {
   rainbowland: '🌈', tiktok: '🎵', youtube: '▶️',
@@ -42,6 +43,7 @@ export default function StudioPage() {
     activeStreams, elapsed, error, ffmpegFound, isElectron,
     toggleCamera, flipCamera, toggleMic, toggleScreen,
     goLive, endStream, setQuality, formatTime,
+    encoderInfo, setEncoderOverride,
   } = useStream()
 
   const { user, destinations, streamTitle, setStreamTitle } = useStore()
@@ -372,34 +374,50 @@ export default function StudioPage() {
               </div>
             )}
             {openPanel === PANELS.settings && (
-              <div className="p-4 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: colors.textMuted }}>
-                  Quality
-                </p>
-                {Object.entries(QUALITY_PRESETS).map(([k, v]) => (
-                  <button key={k} onClick={() => setQuality(k)}
-                    className={clsx('w-full flex items-center justify-between px-3 py-2 rounded-xl border transition-all')}
-                    style={{
-                      background:   quality === k ? `${colors.primary}15` : colors.bg700,
-                      borderColor:  quality === k ? `${colors.primary}55`  : 'rgba(255,255,255,0.07)',
-                      color:        quality === k ? colors.primary          : colors.textSecondary,
-                    }}>
-                    <span className="font-bold text-sm">{v.label}</span>
-                    <span className="text-xs opacity-60">{v.videoBitrate} video · {v.audioBitrate} audio</span>
-                  </button>
-                ))}
+              <div className="p-4 space-y-4">
 
-                <p className="text-xs font-bold uppercase tracking-wider pt-2" style={{ color: colors.textMuted }}>
-                  Streaming Mode
-                </p>
-                <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
-                  style={{ background: colors.bg700, border: '1px solid rgba(255,255,255,0.07)' }}>
-                  <div className="w-2 h-2 rounded-full" style={{ background: colors.success }} />
-                  <div>
-                    <p className="text-white text-xs font-bold">Multi-Threaded</p>
-                    <p className="text-xs" style={{ color: colors.textMuted }}>
-                      1 Worker thread per destination — fully isolated
-                    </p>
+                {/* GPU Encoder */}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
+                    Encoder
+                  </p>
+                  <GPUStatus onEncoderChange={setEncoderOverride} />
+                </div>
+
+                {/* Quality */}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
+                    Quality
+                  </p>
+                  {Object.entries(QUALITY_PRESETS).map(([k, v]) => (
+                    <button key={k} onClick={() => setQuality(k)}
+                      className={clsx('w-full flex items-center justify-between px-3 py-2 rounded-xl border transition-all mb-1.5')}
+                      style={{
+                        background:  quality === k ? `${colors.primary}15` : colors.bg700,
+                        borderColor: quality === k ? `${colors.primary}55`  : 'rgba(255,255,255,0.07)',
+                        color:       quality === k ? colors.primary          : colors.textSecondary,
+                      }}>
+                      <span className="font-bold text-sm">{v.label}</span>
+                      <span className="text-xs opacity-60">{v.videoBitrate} · {v.audioBitrate}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Mode info */}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: colors.textMuted }}>
+                    Streaming Mode
+                  </p>
+                  <div className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
+                    style={{ background: colors.bg700, border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div className="w-2 h-2 rounded-full mt-1 flex-shrink-0" style={{ background: colors.success }} />
+                    <div>
+                      <p className="text-white text-xs font-bold">Multi-Threaded RTMP</p>
+                      <p className="text-[10px]" style={{ color: colors.textMuted }}>
+                        Isolated Worker thread + ffmpeg process per destination.
+                        One platform freezing never affects others.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
