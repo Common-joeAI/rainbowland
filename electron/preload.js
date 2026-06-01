@@ -38,6 +38,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── Shell ─────────────────────────────────────────────────
   openExternal: (url)      => ipcRenderer.invoke('shell:openExternal', url),
 
+  // ── TikTok OAuth ──────────────────────────────────────────
+  tiktokStatus:     ()     => ipcRenderer.invoke('tiktok:status'),
+  tiktokConnect:    ()     => ipcRenderer.invoke('tiktok:connect'),
+  tiktokDisconnect: ()     => ipcRenderer.invoke('tiktok:disconnect'),
+
   // ── Events: main → renderer ───────────────────────────────
   on:  (ch, fn) => ipcRenderer.on(ch, (_, ...args) => fn(...args)),
   off: (ch, fn) => ipcRenderer.removeListener(ch, fn),
