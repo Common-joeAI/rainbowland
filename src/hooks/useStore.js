@@ -7,17 +7,36 @@ export const useStore = create(
       // ── Active tab ───────────────────────────────────────────
       activeTab: 'feed',
       setActiveTab: (tab) => set({ activeTab: tab }),
+      setTab: (tab) => set({ activeTab: tab }),
 
       // ── User profile ─────────────────────────────────────────
       user: {
-        name:     'Creator',
-        handle:   '@creator',
-        avatar:   '🌈',
-        pronouns: 'they/them',
+        name:      'Creator',
+        handle:    '@creator',
+        avatar:    '🌈',
+        pronouns:  'they/them',
         prideFlag: 'rainbow',
-        bio:      '',
+        bio:       '',
       },
       setUser: (user) => set((s) => ({ user: { ...s.user, ...user } })),
+
+      // ── Likes ─────────────────────────────────────────────────
+      likedIds: [],
+      toggleLike: (id) =>
+        set((s) => ({
+          likedIds: s.likedIds.includes(id)
+            ? s.likedIds.filter((x) => x !== id)
+            : [...s.likedIds, id],
+        })),
+      isLiked: (id) => get().likedIds.includes(id),
+
+      // ── Mute ──────────────────────────────────────────────────
+      isMuted: true,
+      toggleMute: () => set((s) => ({ isMuted: !s.isMuted })),
+
+      // ── Comments drawer ───────────────────────────────────────
+      showComments: false,
+      setShowComments: (v) => set({ showComments: v }),
 
       // ── Stream destinations ───────────────────────────────────
       destinations: {
@@ -30,36 +49,29 @@ export const useStore = create(
       },
       setDestination: (id, config) =>
         set((s) => ({
-          destinations: { ...s.destinations, [id]: { ...s.destinations[id], ...config } }
+          destinations: { ...s.destinations, [id]: { ...s.destinations[id], ...config } },
         })),
       toggleDestination: (id) =>
         set((s) => ({
           destinations: {
             ...s.destinations,
-            [id]: { ...s.destinations[id], enabled: !s.destinations[id].enabled }
-          }
+            [id]: { ...s.destinations[id], enabled: !s.destinations[id].enabled },
+          },
         })),
 
-      // ── Stream keys (stored in Electron safeStorage, fallback here) ──
-      secrets: {
-        rainbowland: '',
-        tiktok:      '',
-        youtube:     '',
-        facebook:    '',
-        twitch:      '',
-        custom:      '',
-      },
+      // ── Stream keys ───────────────────────────────────────────
+      secrets: { rainbowland: '', tiktok: '', youtube: '', facebook: '', twitch: '', custom: '' },
       setSecret: (id, key) =>
         set((s) => ({ secrets: { ...s.secrets, [id]: key } })),
 
       // ── Stream settings ───────────────────────────────────────
-      streamTitle:  '',
+      streamTitle:    '',
       setStreamTitle: (t) => set({ streamTitle: t }),
-      quality: 'medium',
-      setQuality: (q) => set({ quality: q }),
+      quality:        'medium',
+      setQuality:     (q) => set({ quality: q }),
 
-      // ── Global viewer count (aggregated) ─────────────────────
-      totalViewers: 0,
+      // ── Global viewer count ───────────────────────────────────
+      totalViewers:    0,
       setTotalViewers: (n) => set({ totalViewers: n }),
     }),
     {
@@ -69,7 +81,8 @@ export const useStore = create(
         destinations: s.destinations,
         quality:      s.quality,
         streamTitle:  s.streamTitle,
-        // Don't persist secrets here — handled by Electron safeStorage
+        likedIds:     s.likedIds,
+        isMuted:      s.isMuted,
       }),
     }
   )
