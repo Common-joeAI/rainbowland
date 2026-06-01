@@ -4,7 +4,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
-  base: './',           // ← critical for Electron file:// loading
+  base: './',
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },
@@ -15,5 +15,6 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    minify: false,   // disable ALL minification — safest fix for "l is not a function"
   },
 })
