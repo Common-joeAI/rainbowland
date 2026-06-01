@@ -12,6 +12,7 @@ import { useTheme }   from '../hooks/useTheme'
 import DestinationManager from '../components/studio/DestinationManager'
 import ThemePicker        from '../components/studio/ThemePicker'
 import GPUStatus          from '../components/studio/GPUStatus'
+import DonationPrompt     from '../components/DonationPrompt'
 
 const DEST_ICONS = {
   rainbowland: '🌈', tiktok: '🎵', youtube: '▶️',
@@ -56,6 +57,7 @@ export default function StudioPage() {
   const [viewers,        setViewers]        = useState(0)
   const [likes,          setLikes]          = useState(0)
   const [aiLoading,      setAiLoading]      = useState(false)
+  const [showDonation,   setShowDonation]   = useState(false)
   const [hearts,         setHearts]         = useState([])
   const chatEndRef = useRef(null)
 
@@ -103,6 +105,12 @@ export default function StudioPage() {
       setStreamTitle(`${user.name} is LIVE on ${theme.name} 🔴`)
     }
     setAiLoading(false)
+  }
+
+  const handleEndStream = async () => {
+    await endStream()
+    // Show donation prompt after a short delay so the UI settles
+    setTimeout(() => setShowDonation(true), 800)
   }
 
   const sendChat = () => {
@@ -479,7 +487,7 @@ export default function StudioPage() {
                   : `🔴 Go Live to ${enabledCount} platform${enabledCount > 1 ? 's' : ''}`}
               </button>
             ) : (
-              <button onClick={endStream}
+              <button onClick={handleEndStream}
                 className="w-full py-4 rounded-2xl font-black text-lg text-white active:scale-95 transition-all flex items-center justify-center gap-2"
                 style={{ background: colors.live }}>
                 <Square className="w-5 h-5 fill-white" />
@@ -505,6 +513,13 @@ export default function StudioPage() {
           </div>
         </div>
       </div>
+
+      {showDonation && (
+        <DonationPrompt
+          trigger="stream-end"
+          onClose={() => setShowDonation(false)}
+        />
+      )}
 
       <style>{`
         @keyframes floatUp {
