@@ -70,6 +70,10 @@ export const useStore = create(
       quality:        'medium',
       setQuality:     (q) => set({ quality: q }),
 
+      // ── Feed video index ──────────────────────────────────────
+      currentVideoIndex: 0,
+      setVideoIndex: (n) => set({ currentVideoIndex: n }),
+
       // ── Global viewer count ───────────────────────────────────
       totalViewers:    0,
       setTotalViewers: (n) => set({ totalViewers: n }),
