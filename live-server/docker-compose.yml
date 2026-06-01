@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  live-relay:
+    build: .
+    container_name: rl-live-relay
+    restart: unless-stopped
+    ports:
+      - "4000:4000"   # WebSocket (proxied via Nginx → WSS)
+      - "8080:8080"   # HLS HTTP  (proxied via Nginx → HTTPS)
+    volumes:
+      - hls_data:/tmp/rainbowland-hls
+    environment:
+      - WS_PORT=4000
+      - HLS_PORT=8080
+
+volumes:
+  hls_data:

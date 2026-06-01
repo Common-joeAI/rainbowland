@@ -23,7 +23,8 @@
     "zustand": "^4.5.2",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
-    "socket.io-client": "^4.7.2"
+    "socket.io-client": "^4.7.2",
+    "hls.js": "^1.5.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
@@ -39,27 +40,44 @@
   "build": {
     "appId": "cc.rainbowland.app",
     "productName": "Rainbow Land",
-    "directories": { "output": "dist-electron" },
+    "directories": {
+      "output": "dist-electron"
+    },
     "files": [
       "dist/**/*",
       "electron/**/*",
       "node_modules/**/*"
     ],
     "extraResources": [
-      { "from": "electron/assets", "to": "assets", "filter": ["**/*"] }
+      {
+        "from": "electron/assets",
+        "to": "assets",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.entertainment",
       "icon": "electron/assets/icon.icns",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
       "icon": "electron/assets/icon.ico",
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "linux": {
       "icon": "electron/assets/icon.png",
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     },
     "nsis": {
       "oneClick": false,
