@@ -1,55 +1,55 @@
 import React from 'react'
-import { Home, Search, Radio, Music, User } from 'lucide-react'
-import { useStore } from '../hooks/useStore'
 import clsx from 'clsx'
+import { Home, Search, Radio, Music2, User, Tv2 } from 'lucide-react'
+import { useStore } from '../hooks/useStore'
 
 const TABS = [
-  { id: 'feed',     label: 'Home',    Icon: Home },
-  { id: 'discover', label: 'Explore', Icon: Search },
-  { id: 'live',     label: 'Live',    Icon: Radio },
-  { id: 'loudman',  label: 'Music',   Icon: Music },
-  { id: 'profile',  label: 'Me',      Icon: User },
+  { id: 'feed',     icon: Home,   label: 'Home'    },
+  { id: 'discover', icon: Search, label: 'Explore' },
+  { id: 'studio',   icon: Tv2,    label: 'Studio',  rainbow: true },
+  { id: 'loudman',  icon: Music2, label: 'Music'   },
+  { id: 'profile',  icon: User,   label: 'Profile' },
 ]
 
 export default function BottomNav() {
-  const { activeTab, setTab } = useStore()
+  const { activeTab, setActiveTab } = useStore()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/10">
+    <nav className="flex-shrink-0 border-t border-white/5 bg-dark-900/95 backdrop-blur-xl">
+      {/* Pride strip */}
       <div className="pride-strip" />
-      <div className="flex items-center justify-around py-2 pb-safe">
-        {TABS.map(({ id, label, Icon }) => {
-          const active = activeTab === id
+
+      <div className="flex">
+        {TABS.map(tab => {
+          const Icon    = tab.icon
+          const isActive = activeTab === tab.id
           return (
             <button
-              key={id}
-              onClick={() => setTab(id)}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
               className={clsx(
-                'flex flex-col items-center gap-0.5 px-4 py-1 transition-all duration-200',
-                active ? 'scale-110' : 'opacity-50'
+                'flex-1 flex flex-col items-center gap-1 py-3 transition-all',
+                isActive ? 'text-white' : 'text-white/30 hover:text-white/60'
               )}
             >
-              {/* Upload button special styling */}
-              {id === 'live' ? (
-                <div className="relative">
-                  <div className={clsx(
-                    'w-9 h-9 rounded-xl flex items-center justify-center',
-                    active
-                      ? 'bg-gradient-to-r from-rainbow-pink to-rainbow-purple'
-                      : 'bg-dark-500'
-                  )}>
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-                  {/* Live indicator dot */}
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+              {tab.rainbow ? (
+                /* Studio button — gradient ring */
+                <div className={clsx(
+                  'p-1.5 rounded-xl transition-all',
+                  isActive
+                    ? 'bg-gradient-to-br from-rainbow-pink via-rainbow-purple to-rainbow-blue shadow-lg shadow-rainbow-purple/30'
+                    : 'bg-dark-700'
+                )}>
+                  <Icon className="w-5 h-5 text-white" />
                 </div>
               ) : (
-                <Icon className={clsx('w-6 h-6',
-                  active ? 'text-rainbow-pink' : 'text-white')} />
+                <Icon className={clsx('w-5 h-5 transition-transform', isActive && 'scale-110')} />
               )}
-              <span className={clsx('text-[10px] font-medium',
-                active ? 'rainbow-text font-bold' : 'text-white/60')}>
-                {label}
+              <span className={clsx(
+                'text-[10px] font-semibold tracking-wide',
+                tab.rainbow && isActive ? 'rainbow-text' : ''
+              )}>
+                {tab.label}
               </span>
             </button>
           )

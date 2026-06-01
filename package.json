@@ -2,10 +2,16 @@
   "name": "rainbowland",
   "version": "1.0.0",
   "private": true,
+  "description": "Rainbow Land — Pride-Themed Desktop Streaming Studio for LGBT+ Creators",
+  "author": "Common-joeAI",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:3000 && electron .\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:electron": "vite build && electron-builder",
+    "preview": "vite preview",
+    "electron": "electron ."
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -16,13 +22,48 @@
     "react-player": "^2.16.0",
     "zustand": "^4.5.2",
     "clsx": "^2.1.1",
-    "date-fns": "^3.6.0"
+    "date-fns": "^3.6.0",
+    "socket.io-client": "^4.7.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
     "vite": "^5.3.1",
     "tailwindcss": "^3.4.4",
     "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.39"
+    "postcss": "^8.4.39",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "cc.rainbowland.app",
+    "productName": "Rainbow Land",
+    "directories": { "output": "dist-electron" },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      { "from": "electron/assets", "to": "assets", "filter": ["**/*"] }
+    ],
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "icon": "electron/assets/icon.icns",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "icon": "electron/assets/icon.ico",
+      "target": ["nsis", "portable"]
+    },
+    "linux": {
+      "icon": "electron/assets/icon.png",
+      "target": ["AppImage", "deb"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
