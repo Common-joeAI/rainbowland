@@ -146,7 +146,7 @@ function createWindow() {
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#050508',
     icon: path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
-    show: false,
+    show: true,
     webPreferences: {
       preload:           path.join(__dirname, 'preload.js'),
       contextIsolation:  true,
@@ -159,8 +159,22 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:3000')
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html')
+    mainWindow.loadFile(indexPath).catch(err => {
+      console.error('Failed to load:', indexPath, err)
+    })
   }
+
+  mainWindow.webContents.on('did-fail-load', (event, code, desc, url) => {
+    console.error('did-fail-load', code, desc, url)
+    // Fallback: show window anyway so user sees something
+    mainWindow.show()
+  })
+
+  mainWindow.webContents.on('dom-ready', () => {
+    mainWindow.show()
+    mainWindow.focus()
+  })
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
