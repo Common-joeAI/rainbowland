@@ -44,7 +44,8 @@
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3",
     "concurrently": "^8.2.2",
-    "wait-on": "^7.2.0"
+    "wait-on": "^7.2.0",
+    "electron-updater": "^6.3.9"
   },
   "build": {
     "appId": "cc.rainbowland.app",
@@ -131,6 +132,11 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Rainbow Land"
     },
-    "asar": false
+    "asar": false,
+    "publish": {
+      "provider": "github",
+      "owner": "Common-joeAI",
+      "repo": "rainbowland"
+    }
   }
 }
