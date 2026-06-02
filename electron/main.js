@@ -6,6 +6,16 @@ const http   = require('http')
 const crypto = require('crypto')
 const https  = require('https')
 
+// ── Auto-updater (electron-updater via electron-builder) ──────
+let autoUpdater = null
+try {
+  autoUpdater = require('electron-updater').autoUpdater
+  autoUpdater.autoDownload    = false   // ask user first
+  autoUpdater.autoInstallOnAppQuit = true
+} catch (e) {
+  console.warn('[updater] electron-updater not available:', e.message)
+}
+
 // ── Dev / Prod detection ──────────────────────────────────────
 const isDev = !app.isPackaged
 
@@ -16,7 +26,6 @@ const SETTINGS_FILE = path.join(USER_DATA, 'settings.json')
 const TIKTOK_FILE  = path.join(USER_DATA, 'tiktok-token.enc')
 
 // ── TikTok OAuth config ───────────────────────────────────────
-// Sandbox keys — swap for production keys after TikTok review approval
 const TIKTOK_CLIENT_KEY    = process.env.TIKTOK_CLIENT_KEY    || 'awqj4yydnd6k5gyx'
 const TIKTOK_CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET || ''
 const TIKTOK_REDIRECT_PORT = 54321
@@ -159,12 +168,10 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:3000')
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
-    // app.getAppPath() resolves correctly even inside asar packaging
     const indexPath = path.join(app.getAppPath(), 'dist', 'index.html')
     console.log('[BOOT] Loading:', indexPath)
     mainWindow.loadFile(indexPath).catch(err => {
       console.error('[BOOT] Failed to load:', indexPath, err)
-      // Try fallback relative path
       const fallback = path.join(__dirname, '..', 'dist', 'index.html')
       console.log('[BOOT] Trying fallback:', fallback)
       mainWindow.loadFile(fallback).catch(err2 => {
@@ -175,31 +182,30 @@ function createWindow() {
 
   mainWindow.webContents.on('did-fail-load', (event, code, desc, url) => {
     console.error('did-fail-load', code, desc, url)
-    // Fallback: show window anyway so user sees something
     mainWindow.show()
   })
 
   mainWindow.webContents.on('dom-ready', () => {
     mainWindow.show()
     mainWindow.focus()
-    // DevTools hidden in production — unlock with Ctrl+Shift+Alt+D
   })
 
-  // Secret key combo to open DevTools: Ctrl+Shift+Alt+D
+  // Secret DevTools: Ctrl+Shift+Alt+D
   const { globalShortcut } = require('electron')
   globalShortcut.register('CommandOrControl+Shift+Alt+D', () => {
-    if (mainWindow && mainWindow.webContents) {
-      if (mainWindow.webContents.isDevToolsOpened()) {
-        mainWindow.webContents.closeDevTools()
-      } else {
-        mainWindow.webContents.openDevTools({ mode: 'detach' })
-      }
+    if (mainWindow?.webContents) {
+      if (mainWindow.webContents.isDevToolsOpened()) mainWindow.webContents.closeDevTools()
+      else mainWindow.webContents.openDevTools({ mode: 'detach' })
     }
   })
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     mainWindow.focus()
+    // Check for updates 3s after launch (give UI time to render)
+    if (!isDev && autoUpdater) {
+      setTimeout(() => checkForUpdates(), 3000)
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -208,7 +214,66 @@ function createWindow() {
   })
 }
 
+// ── Auto-updater logic ────────────────────────────────────────
+function checkForUpdates() {
+  if (!autoUpdater) return
+  try {
+    autoUpdater.checkForUpdates().catch(err => {
+      console.warn('[updater] check failed:', err.message)
+    })
+  } catch (e) {
+    console.warn('[updater] error:', e.message)
+  }
+}
+
+function setupAutoUpdater() {
+  if (!autoUpdater) return
+
+  autoUpdater.on('checking-for-update', () => {
+    mainWindow?.webContents.send('updater:status', { status: 'checking' })
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    mainWindow?.webContents.send('updater:status', {
+      status: 'available',
+      version: info.version,
+      releaseNotes: info.releaseNotes || '',
+    })
+  })
+
+  autoUpdater.on('update-not-available', (info) => {
+    mainWindow?.webContents.send('updater:status', {
+      status: 'up-to-date',
+      version: info.version,
+    })
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    mainWindow?.webContents.send('updater:status', {
+      status: 'downloading',
+      percent: Math.round(progress.percent),
+      bytesPerSecond: progress.bytesPerSecond,
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    mainWindow?.webContents.send('updater:status', {
+      status: 'downloaded',
+      version: info.version,
+    })
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.warn('[updater] error event:', err.message)
+    mainWindow?.webContents.send('updater:status', {
+      status: 'error',
+      message: err.message,
+    })
+  })
+}
+
 app.whenReady().then(() => {
+  setupAutoUpdater()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -226,7 +291,7 @@ ipcMain.handle('settings:set', (_, settings) => {
   return { ok: true }
 })
 
-// ── IPC: RTMP keys (encrypted via safeStorage) ────────────────
+// ── IPC: RTMP keys ────────────────────────────────────────────
 ipcMain.handle('secrets:get', () => {
   try {
     if (!fs.existsSync(SECRETS_FILE)) return {}
@@ -263,7 +328,7 @@ ipcMain.handle('system:info', () => ({
   memory:   os.totalmem(),
 }))
 
-// ── IPC: Window controls (custom titlebar) ────────────────────
+// ── IPC: Window controls ──────────────────────────────────────
 ipcMain.handle('window:minimize', () => mainWindow?.minimize())
 ipcMain.handle('window:maximize', () => {
   if (mainWindow?.isMaximized()) mainWindow.unmaximize()
@@ -275,13 +340,29 @@ ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false)
 // ── IPC: Open external URL ────────────────────────────────────
 ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url))
 
-// ── IPC: TikTok OAuth ─────────────────────────────────────────
+// ── IPC: Auto-updater ─────────────────────────────────────────
+ipcMain.handle('updater:check', () => {
+  if (!autoUpdater || isDev) return { status: 'dev-mode' }
+  checkForUpdates()
+  return { status: 'checking' }
+})
 
-// Get current TikTok connection status
+ipcMain.handle('updater:download', () => {
+  if (!autoUpdater) return { ok: false }
+  autoUpdater.downloadUpdate()
+  return { ok: true }
+})
+
+ipcMain.handle('updater:install', () => {
+  if (!autoUpdater) return { ok: false }
+  autoUpdater.quitAndInstall(false, true)
+  return { ok: true }
+})
+
+// ── IPC: TikTok OAuth ─────────────────────────────────────────
 ipcMain.handle('tiktok:status', () => {
   const token = loadTikTokToken()
   if (!token) return { connected: false }
-  // Check if expired
   const expiresAt = token.expires_at || 0
   if (Date.now() > expiresAt) return { connected: false, expired: true }
   return {
@@ -293,109 +374,61 @@ ipcMain.handle('tiktok:status', () => {
   }
 })
 
-// Start OAuth flow — opens browser, starts local callback server
 ipcMain.handle('tiktok:connect', () => {
   return new Promise((resolve, reject) => {
-    // Generate CSRF state
-    const state    = crypto.randomBytes(16).toString('hex')
+    const state         = crypto.randomBytes(16).toString('hex')
     const codeVerifier  = crypto.randomBytes(32).toString('base64url')
     const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url')
 
-    // One-shot local HTTP server to catch the redirect
-    let callbackServer = null
-    let settled = false
+    const authUrl = `https://www.tiktok.com/v2/auth/authorize/?` + new URLSearchParams({
+      client_key:            TIKTOK_CLIENT_KEY,
+      response_type:         'code',
+      scope:                 TIKTOK_SCOPES,
+      redirect_uri:          TIKTOK_REDIRECT_URI,
+      state,
+      code_challenge:        codeChallenge,
+      code_challenge_method: 'S256',
+    }).toString()
 
-    const settle = (result) => {
-      if (settled) return
-      settled = true
-      callbackServer?.close()
-      if (result.error) reject(new Error(result.error))
-      else resolve(result)
-    }
+    shell.openExternal(authUrl)
 
-    callbackServer = http.createServer(async (req, res) => {
-      if (!req.url?.startsWith('/tiktok/callback')) { res.end(); return }
-
+    const server = http.createServer(async (req, res) => {
+      if (!req.url?.startsWith('/tiktok/callback')) return
       const params = new URL(req.url, `http://localhost:${TIKTOK_REDIRECT_PORT}`)
       const code   = params.searchParams.get('code')
       const retState = params.searchParams.get('state')
-      const error  = params.searchParams.get('error')
 
-      // Send a nice close-me page to the browser
       res.writeHead(200, { 'Content-Type': 'text/html' })
-      res.end(`<!DOCTYPE html><html><head><style>
-        body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0a0a0f;color:#e8e8f0}
-        .card{text-align:center;padding:2rem}h1{font-size:2rem;margin-bottom:.5rem}p{color:#888}
-      </style></head><body><div class="card">
-        ${error ? `<h1>❌ Authorization failed</h1><p>${error}</p>` : '<h1>🌈 Connected!</h1><p>You can close this tab and return to Rainbow Land.</p>'}
-      </div></body></html>`)
+      res.end('<html><body><h2>✅ Connected! You can close this tab.</h2></body></html>')
+      server.close()
 
-      if (error) { settle({ error }); return }
-      if (retState !== state) { settle({ error: 'State mismatch — possible CSRF' }); return }
-      if (!code)  { settle({ error: 'No code received' }); return }
+      if (!code || retState !== state) {
+        return reject(new Error('OAuth state mismatch or missing code'))
+      }
 
       try {
-        // Exchange code for token
         const tokenData = await exchangeTikTokCode(code)
-        if (tokenData.error) { settle({ error: tokenData.error_description || tokenData.error }); return }
-
-        // Fetch user profile
-        let displayName = 'TikTok User'
-        let avatarUrl   = ''
-        let openId      = tokenData.open_id || ''
-        try {
-          const userRes = await fetchTikTokUser(tokenData.access_token)
-          const u = userRes?.data?.user || {}
-          displayName = u.display_name || displayName
-          avatarUrl   = u.avatar_url   || avatarUrl
-          openId      = u.open_id      || openId
-        } catch {}
-
-        // Persist token securely
-        const stored = {
-          access_token:  tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          open_id:       openId,
-          display_name:  displayName,
-          avatar_url:    avatarUrl,
-          expires_at:    Date.now() + (tokenData.expires_in || 86400) * 1000,
+        const userInfo  = await fetchTikTokUser(tokenData.access_token)
+        const saved = {
+          ...tokenData,
+          display_name: userInfo?.data?.user?.display_name,
+          avatar_url:   userInfo?.data?.user?.avatar_url,
+          open_id:      userInfo?.data?.user?.open_id,
+          expires_at:   Date.now() + (tokenData.expires_in || 86400) * 1000,
         }
-        saveTikTokToken(stored)
-
-        settle({
-          connected:   true,
-          displayName,
-          avatarUrl,
-          openId,
-        })
+        saveTikTokToken(saved)
+        resolve({ connected: true, displayName: saved.display_name, avatarUrl: saved.avatar_url })
       } catch (e) {
-        settle({ error: e.message })
+        reject(e)
       }
     })
 
-    callbackServer.listen(TIKTOK_REDIRECT_PORT, () => {
-      // Build TikTok OAuth URL
-      const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/')
-      authUrl.searchParams.set('client_key',             TIKTOK_CLIENT_KEY)
-      authUrl.searchParams.set('scope',                  TIKTOK_SCOPES)
-      authUrl.searchParams.set('response_type',          'code')
-      authUrl.searchParams.set('redirect_uri',           TIKTOK_REDIRECT_URI)
-      authUrl.searchParams.set('state',                  state)
-      authUrl.searchParams.set('code_challenge',         codeChallenge)
-      authUrl.searchParams.set('code_challenge_method',  'S256')
-
-      shell.openExternal(authUrl.toString())
-    })
-
-    // Timeout after 5 minutes
-    setTimeout(() => settle({ error: 'OAuth timed out — please try again' }), 5 * 60 * 1000)
+    server.listen(TIKTOK_REDIRECT_PORT, 'localhost')
+    setTimeout(() => { server.close(); reject(new Error('OAuth timeout')) }, 300000)
   })
 })
 
-// Disconnect TikTok
 ipcMain.handle('tiktok:disconnect', () => {
   deleteTikTokToken()
   return { ok: true }
 })
-
-app.on('will-quit', () => { require('electron').globalShortcut.unregisterAll() })
