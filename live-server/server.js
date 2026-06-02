@@ -53,6 +53,21 @@ const wss    = new WebSocketServer({ server, path: '/ws' })
 
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
+
+// ── Static public assets (icon, favicon, legal pages) ─────────────────────────
+import { fileURLToPath } from 'url'
+import { dirname, join  } from 'path'
+const __filename = fileURLToPath(import.meta.url)
+const __dirname  = dirname(__filename)
+app.use(express.static(join(__dirname, 'public')))
+
+// ── Legal pages ───────────────────────────────────────────────────────────────
+app.get('/privacy', (req, res) =>
+  res.sendFile(join(__dirname, 'public', 'privacy.html'))
+)
+app.get('/terms', (req, res) =>
+  res.sendFile(join(__dirname, 'public', 'terms.html'))
+)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-ID, X-Handle')
@@ -534,3 +549,4 @@ function broadcastGlobal(obj) {
 }
 
 server.listen(PORT, () => console.log(`[RL Server] :${PORT} — coin ledger active`))
+
