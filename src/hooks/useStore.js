@@ -17,6 +17,9 @@ export const useStore = create(
         pronouns:  'they/them',
         prideFlag: 'rainbow',
         bio:       '',
+        role:      'viewer',
+        id:        null,
+        email:     '',
       },
       setUser: (user) => set((s) => ({ user: { ...s.user, ...user } })),
 

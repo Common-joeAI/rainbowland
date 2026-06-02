@@ -39,6 +39,13 @@ import {
 try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
 initCoinDB()
 
+// ── Auth DB ───────────────────────────────────────────────────────────────────
+import {
+  initAuthDB, registerUser, loginUser, refreshAccessToken,
+  updateProfile, upgradeToHost, verifyJWT, getUserById
+} from './auth.js'
+initAuthDB()
+
 // ── Express setup ─────────────────────────────────────────────────────────────
 const app    = express()
 const server = createServer(app)
@@ -54,17 +61,36 @@ app.use((req, res, next) => {
   next()
 })
 
-// ── Auth middleware (simple token for now) ─────────────────────────────────────
-// In production replace with JWT. For v1, the Electron app sends:
-//   X-User-ID: a UUID generated on first launch (stored in localStorage)
-//   X-Handle:  the user's @handle
+// ── Auth middleware (JWT) ─────────────────────────────────────────────────────
 function requireUser(req, res, next) {
-  const userId = req.headers['x-user-id']
-  const handle = req.headers['x-handle'] || 'anonymous'
-  if (!userId) return res.status(401).json({ error: 'X-User-ID header required' })
-  req.userId = userId
-  req.handle = handle
+  const authHeader = req.headers['authorization'] || ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+  // Also accept legacy X-User-ID for backward compat during migration
+  if (!token) {
+    const legacyId = req.headers['x-user-id']
+    if (legacyId) {
+      req.userId = legacyId
+      req.handle = req.headers['x-handle'] || '@viewer'
+      req.role   = 'viewer'
+      return next()
+    }
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  const payload = verifyJWT(token)
+  if (!payload) return res.status(401).json({ error: 'Invalid or expired token' })
+  req.userId = payload.sub
+  req.handle = payload.handle
+  req.role   = payload.role
   next()
+}
+
+function requireHost(req, res, next) {
+  requireUser(req, res, () => {
+    if (req.role !== 'host' && req.role !== 'admin') {
+      return res.status(403).json({ error: 'Host account required. Upgrade in your profile.' })
+    }
+    next()
+  })
 }
 
 // ── In-memory stream registry (unchanged) ─────────────────────────────────────
@@ -73,10 +99,63 @@ const chatRooms    = new Map()   // streamKey → Set<ws>
 const issuedKeys   = new Map()
 const globalClients= new Set()
 
+
+// ════════════════════════════════════════════════════════════════════════════════
+// AUTH ROUTES
+// ════════════════════════════════════════════════════════════════════════════════
+
+/** POST /api/auth/register */
+app.post('/api/auth/register', (req, res) => {
+  const { handle, email, password, displayName, role } = req.body
+  // Only allow role='host' if explicitly requested (becomes viewer by default)
+  const result = registerUser({ handle, email, password, displayName, role: role === 'host' ? 'host' : 'viewer' })
+  if (!result.ok) return res.status(400).json(result)
+  res.json(result)
+})
+
+/** POST /api/auth/login */
+app.post('/api/auth/login', (req, res) => {
+  const { identifier, password } = req.body
+  const result = loginUser({ identifier, password })
+  if (!result.ok) return res.status(401).json(result)
+  res.json(result)
+})
+
+/** POST /api/auth/refresh */
+app.post('/api/auth/refresh', (req, res) => {
+  const { refreshToken } = req.body
+  const result = refreshAccessToken(refreshToken)
+  if (!result.ok) return res.status(401).json(result)
+  res.json(result)
+})
+
+/** GET /api/auth/me */
+app.get('/api/auth/me', requireUser, (req, res) => {
+  const user = getUserById(req.userId)
+  if (!user) return res.status(404).json({ error: 'User not found' })
+  res.json({ user })
+})
+
+/** PUT /api/auth/profile */
+app.put('/api/auth/profile', requireUser, (req, res) => {
+  const result = updateProfile(req.userId, req.body)
+  res.json(result)
+})
+
+/** POST /api/auth/become-host */
+app.post('/api/auth/become-host', requireUser, (req, res) => {
+  const result = upgradeToHost(req.userId)
+  // Re-issue tokens with new role
+  const user = getUserById(req.userId)
+  if (!user) return res.status(404).json({ error: 'User not found' })
+  res.json({ ok: true, message: 'Account upgraded to host! You can now go live.', user: result.user })
+})
+
 // ── Stream key endpoints ──────────────────────────────────────────────────────
-app.post('/api/stream-key', (req, res) => {
-  const { userId, secret } = req.body
-  if (secret !== STREAM_SECRET) return res.status(403).json({ error: 'forbidden' })
+app.post('/api/stream-key', requireHost, (req, res) => {
+  const { secret } = req.body
+  const userId = req.userId
+  if (secret !== STREAM_SECRET && req.role !== 'host') return res.status(403).json({ error: 'forbidden' })
   const key = randomBytes(12).toString('hex')
   issuedKeys.set(userId, key)
   res.json({ streamKey: key, rtmpUrl: 'rtmp://live.rainbowland.cc/live', hlsUrl: `https://live.rainbowland.cc/hls/${key}/index.m3u8` })

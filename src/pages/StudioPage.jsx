@@ -40,6 +40,22 @@ const PANELS = {
 }
 
 export default function StudioPage() {
+  const { user, setActiveTab } = useStore()
+  if (user.role !== 'host' && user.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-[#0d0d18] flex items-center justify-center p-6 text-center">
+        <div>
+          <div className="text-5xl mb-4">🎙️</div>
+          <h2 className="text-white text-xl font-bold mb-2">Host Only</h2>
+          <p className="text-gray-400 text-sm mb-4">You need a Host account to access the studio.</p>
+          <button onClick={() => setActiveTab('profile')}
+            className="px-6 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 text-white font-semibold text-sm">
+            Upgrade in Profile →
+          </button>
+        </div>
+      </div>
+    )
+  }
   const {
     videoRef, camOn, micOn, screenOn, quality, isLive,
     activeStreams, elapsed, error, ffmpegFound, isElectron,

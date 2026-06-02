@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Edit3, Settings, Link, Sparkles, Bot, ChevronDown, Info, Coins, Trophy, TrendingUp, Gift } from 'lucide-react'
+import { Edit3, Settings, Link, Sparkles, Bot, ChevronDown, Info, Coins, Trophy, TrendingUp, Gift, LogOut, Radio, ShieldCheck } from 'lucide-react'
 import { fetchEarnings, fetchLeaderboard, getUserId } from '../api/coins'
+import { logout, becomeHost } from '../api/auth'
 import { GIFTS } from '../components/GiftPanel'
 import { useStore } from '../hooks/useStore'
 import { generateBio } from '../api/grok'
@@ -24,6 +25,23 @@ export default function ProfilePage() {
   const [aiPersonality, setAiPersonality]     = useState(() => localStorage.getItem('rl_ai_personality') || 'warm')
   const [aiCustomInstr, setAiCustomInstr]     = useState(() => localStorage.getItem('rl_ai_custom_instr') || '')
   const [aiSaved, setAiSaved]                 = useState(false)
+  const [hostLoading, setHostLoading] = useState(false)
+  const [hostDone, setHostDone] = useState(false)
+
+  async function handleBecomeHost() {
+    setHostLoading(true)
+    const result = await becomeHost()
+    if (result.ok) {
+      setUser({ role: 'host' })
+      setHostDone(true)
+    }
+    setHostLoading(false)
+  }
+
+  function handleLogout() {
+    logout()
+    window.location.reload()
+  }
 
   // Earnings state
   const [earnings, setEarnings]   = useState(null)

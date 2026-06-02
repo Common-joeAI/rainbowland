@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useStore } from './hooks/useStore'
 import BottomNav       from './components/BottomNav'
 import WindowTitleBar  from './components/WindowTitleBar'
@@ -8,11 +8,82 @@ import LivePage    from './pages/LivePage'
 import LoudmanPage from './pages/LoudmanPage'
 import ProfilePage from './pages/ProfilePage'
 import StudioPage  from './pages/StudioPage'
+import AuthPage    from './pages/AuthPage'
+import { isLoggedIn, getStoredUser, refreshSession } from './api/auth'
 
 const IS_ELECTRON = typeof window !== 'undefined' && !!window.electronAPI
 
 export default function App() {
-  const { activeTab } = useStore()
+  const { activeTab, setUser } = useStore()
+  const [authed, setAuthed] = useState(false)
+  const [authChecking, setAuthChecking] = useState(true)
+
+  // On mount: check for existing session
+  useEffect(() => {
+    async function checkSession() {
+      if (isLoggedIn()) {
+        // Re-hydrate store with stored user
+        const u = getStoredUser()
+        if (u) {
+          setUser({
+            name:      u.display_name,
+            handle:    u.handle,
+            avatar:    u.avatar_emoji || '🌈',
+            pronouns:  u.pronouns,
+            prideFlag: u.pride_flag,
+            bio:       u.bio,
+            role:      u.role,
+            id:        u.id,
+            email:     u.email,
+          })
+        }
+        setAuthed(true)
+      } else {
+        // Try refreshing with stored refresh token
+        try {
+          const refreshed = await refreshSession()
+          if (refreshed) {
+            const u = refreshed.user
+            setUser({
+              name:      u.display_name,
+              handle:    u.handle,
+              avatar:    u.avatar_emoji || '🌈',
+              pronouns:  u.pronouns,
+              prideFlag: u.pride_flag,
+              bio:       u.bio,
+              role:      u.role,
+              id:        u.id,
+              email:     u.email,
+            })
+            setAuthed(true)
+          }
+        } catch {}
+      }
+      setAuthChecking(false)
+    }
+    checkSession()
+  }, [])
+
+  function handleAuth(user) {
+    setAuthed(true)
+  }
+
+  // Loading splash while checking session
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-[#0d0d18] flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-5xl mb-3 animate-pulse">🌈</div>
+          <p className="text-purple-400 text-sm">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Auth gate
+  if (!authed) {
+    return <AuthPage onAuth={handleAuth} />
+  }
 
   // Studio is full-screen, no nav bar — but still show titlebar
   if (activeTab === 'studio') return (
