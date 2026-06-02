@@ -1,8 +1,8 @@
 {
   "name": "rainbowland",
-  "version": "1.1.10",
+  "version": "1.1.11",
   "private": true,
-  "description": "Rainbow Land — Free live streaming studio built for LGBT+ creators",
+  "description": "Rainbow Land \u2014 Free live streaming studio built for LGBT+ creators",
   "author": {
     "name": "Common-joeAI",
     "email": "support@rainbowland.cc",
@@ -49,7 +49,7 @@
   "build": {
     "appId": "cc.rainbowland.app",
     "productName": "Rainbow Land",
-    "copyright": "Copyright © 2026 Rainbow Land",
+    "copyright": "Copyright \u00a9 2026 Rainbow Land",
     "directories": {
       "output": "dist-electron"
     },
