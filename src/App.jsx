@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useStore } from './hooks/useStore'
 import BottomNav       from './components/BottomNav'
 import WindowTitleBar  from './components/WindowTitleBar'
+import UpdatePrompt    from './components/UpdatePrompt'
 import FeedPage     from './pages/FeedPage'
 import DiscoverPage from './pages/DiscoverPage'
 import LivePage     from './pages/LivePage'
@@ -100,6 +101,8 @@ export default function App() {
         {activeTab === 'profile'  && <ProfilePage />}
       </main>
       <BottomNav />
+      <UpdatePrompt />
     </div>
   )
 }
+
