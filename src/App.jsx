@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { useStore } from './hooks/useStore'
 import BottomNav       from './components/BottomNav'
 import WindowTitleBar  from './components/WindowTitleBar'
-import FeedPage    from './pages/FeedPage'
+import FeedPage     from './pages/FeedPage'
 import DiscoverPage from './pages/DiscoverPage'
-import LivePage    from './pages/LivePage'
-import LoudmanPage from './pages/LoudmanPage'
-import ProfilePage from './pages/ProfilePage'
-import StudioPage  from './pages/StudioPage'
-import AuthPage    from './pages/AuthPage'
+import LivePage     from './pages/LivePage'
+import LoudmanPage  from './pages/LoudmanPage'
+import CutroomPage  from './pages/CutroomPage'
+import ProfilePage  from './pages/ProfilePage'
+import StudioPage   from './pages/StudioPage'
+import AuthPage     from './pages/AuthPage'
 import { isLoggedIn, getStoredUser, refreshSession } from './api/auth'
 
 const IS_ELECTRON = typeof window !== 'undefined' && !!window.electronAPI
@@ -18,11 +19,9 @@ export default function App() {
   const [authed, setAuthed] = useState(false)
   const [authChecking, setAuthChecking] = useState(true)
 
-  // On mount: check for existing session
   useEffect(() => {
     async function checkSession() {
       if (isLoggedIn()) {
-        // Re-hydrate store with stored user
         const u = getStoredUser()
         if (u) {
           setUser({
@@ -39,7 +38,6 @@ export default function App() {
         }
         setAuthed(true)
       } else {
-        // Try refreshing with stored refresh token
         try {
           const refreshed = await refreshSession()
           if (refreshed) {
@@ -68,7 +66,6 @@ export default function App() {
     setAuthed(true)
   }
 
-  // Loading splash while checking session
   if (authChecking) {
     return (
       <div className="min-h-screen bg-[#0d0d18] flex items-center justify-center">
@@ -80,12 +77,10 @@ export default function App() {
     )
   }
 
-  // Auth gate
   if (!authed) {
     return <AuthPage onAuth={handleAuth} />
   }
 
-  // Studio is full-screen, no nav bar — but still show titlebar
   if (activeTab === 'studio') return (
     <>
       <WindowTitleBar />
@@ -95,14 +90,13 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col max-w-md mx-auto relative bg-dark-900">
-      {/* Traffic light buttons — visible on every page on Windows/Linux */}
       <WindowTitleBar />
-
       <main className="flex-1 overflow-hidden">
         {activeTab === 'feed'     && <FeedPage />}
         {activeTab === 'discover' && <DiscoverPage />}
         {activeTab === 'live'     && <LivePage />}
         {activeTab === 'loudman'  && <LoudmanPage />}
+        {activeTab === 'cutroom'  && <CutroomPage />}
         {activeTab === 'profile'  && <ProfilePage />}
       </main>
       <BottomNav />
