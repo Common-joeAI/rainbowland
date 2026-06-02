@@ -14,6 +14,7 @@ import ThemePicker        from '../components/studio/ThemePicker'
 import GPUStatus          from '../components/studio/GPUStatus'
 import DonationPrompt     from '../components/DonationPrompt'
 import RainbowLandLiveLink from '../components/studio/RainbowLandLiveLink'
+import UnifiedChat          from '../components/UnifiedChat'
 
 const DEST_ICONS = {
   rainbowland: '🌈', tiktok: '🎵', youtube: '▶️',
@@ -89,7 +90,8 @@ export default function StudioPage() {
   useEffect(() => {
     if (!isLive) return
     const vSim = setInterval(() => setViewers(v => v + Math.floor(Math.random() * 12)), 4000)
-    const cSim = setInterval(() => {
+    const cSim = setInterval(() => { if (!isLive) return; // gated below
+          const hasRealChat = destinations && Object.values(destinations).some(d => d.enabled && d.key); if (hasRealChat) return;
       const m = CHAT_POOL[Math.floor(Math.random() * CHAT_POOL.length)]
       setChat(c => [...c.slice(-60), {
         ...m, id: Date.now(),
