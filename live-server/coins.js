@@ -11,6 +11,8 @@
  *  - Rate limiting: max 50 gifts/minute per user, max 10k coins/min
  *  - Duplicate IPN protection: txn_id stored, reused txn_ids rejected
  */
+import { mkdirSync } from 'fs'
+
 
 import Database from 'better-sqlite3'
 import { randomBytes, createHmac } from 'crypto'
@@ -24,7 +26,6 @@ const DB_PATH = process.env.COIN_DB || path.join(__dirname, 'data', 'coins.db')
 let db
 
 export function initCoinDB() {
-  const { mkdirSync } = await import('fs')  
   try { mkdirSync(path.dirname(DB_PATH), { recursive: true }) } catch {}
 
   db = new Database(DB_PATH)
