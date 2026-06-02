@@ -316,9 +316,7 @@ app.post('/api/deploy', async (req, res) => {
     const cmds = [
       `git clone --filter=blob:none --sparse --depth 1 ${REPO_URL} ${tmpDir}`,
       `cd ${tmpDir} && git sparse-checkout set live-server`,
-      `cp ${tmpDir}/live-server/server.js ${DEPLOY_DIR}/server.js`,
-      `cp ${tmpDir}/live-server/coins.js  ${DEPLOY_DIR}/coins.js`,
-      `cp ${tmpDir}/live-server/package.json ${DEPLOY_DIR}/package.json`,
+      `rsync -av --exclude=data/ --exclude=node_modules/ ${tmpDir}/live-server/ ${DEPLOY_DIR}/`,
       `cd ${DEPLOY_DIR} && npm install --omit=dev`,
       `rm -rf ${tmpDir}`,
       `pm2 restart rainbowland-live`,
