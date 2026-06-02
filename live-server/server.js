@@ -18,6 +18,9 @@ import querystring  from 'querystring'
 import path         from 'path'
 import { fileURLToPath } from 'url'
 import { mkdirSync } from 'fs'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+const execAsync = promisify(exec)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -207,6 +210,52 @@ app.get('/api/coins/earnings/:creatorId', requireUser, (req, res) => {
     return res.status(403).json({ error: 'Forbidden' })
   }
   res.json(getCreatorEarnings(req.userId))
+})
+
+
+// ════════════════════════════════════════════════════════════════════════════════
+// DEPLOY WEBHOOK — POST /api/deploy  (secret-gated)
+// GitHub Actions hits this after every push to main.
+// Server pulls latest live-server/ files and restarts itself via PM2.
+// ════════════════════════════════════════════════════════════════════════════════
+const DEPLOY_SECRET = process.env.DEPLOY_SECRET || 'rl-deploy-secret-change-me'
+const GH_TOKEN = process.env.GH_TOKEN || ''
+const REPO_URL = `https://Common-joeAI:${GH_TOKEN}@github.com/Common-joeAI/rainbowland.git`
+const DEPLOY_DIR = process.env.DEPLOY_DIR || '/root/rainbowland-live'
+
+app.post('/api/deploy', async (req, res) => {
+  const { secret } = req.body
+  if (secret !== DEPLOY_SECRET) return res.status(403).json({ error: 'forbidden' })
+
+  res.json({ ok: true, message: 'Deploy started — check logs' })
+
+  try {
+    console.log('[DEPLOY] Starting pull...')
+
+    // Pull latest live-server files from GitHub via sparse checkout into a temp dir
+    const tmpDir = `/tmp/rl-deploy-${Date.now()}`
+    const cmds = [
+      `git clone --filter=blob:none --sparse --depth 1 ${REPO_URL} ${tmpDir}`,
+      `cd ${tmpDir} && git sparse-checkout set live-server`,
+      `cp ${tmpDir}/live-server/server.js ${DEPLOY_DIR}/server.js`,
+      `cp ${tmpDir}/live-server/coins.js  ${DEPLOY_DIR}/coins.js`,
+      `cp ${tmpDir}/live-server/package.json ${DEPLOY_DIR}/package.json`,
+      `cd ${DEPLOY_DIR} && npm install --omit=dev`,
+      `rm -rf ${tmpDir}`,
+      `pm2 restart rainbowland-live`,
+    ]
+
+    for (const cmd of cmds) {
+      console.log(`[DEPLOY] $ ${cmd.replace(/ghp_[^@]+/g, '***')}`)
+      const { stdout, stderr } = await execAsync(cmd, { timeout: 60000 })
+      if (stdout) console.log('[DEPLOY]', stdout.trim())
+      if (stderr) console.log('[DEPLOY] err:', stderr.trim())
+    }
+
+    console.log('[DEPLOY] ✅ Done')
+  } catch (err) {
+    console.error('[DEPLOY] ❌ Failed:', err.message)
+  }
 })
 
 // ════════════════════════════════════════════════════════════════════════════════
