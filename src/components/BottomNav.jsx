@@ -1,16 +1,17 @@
 import React, { useState } from 'react'
 import clsx from 'clsx'
-import { Home, Search, Tv2, Music2, User, Heart } from 'lucide-react'
+import { Home, Search, Tv2, Music2, User, Scissors } from 'lucide-react'
 import { useStore } from '../hooks/useStore'
 import { useTheme } from '../hooks/useTheme'
 import DonationPrompt from './DonationPrompt'
 
 const TABS = [
-  { id: 'feed',     icon: Home,   label: 'Home'    },
-  { id: 'discover', icon: Search, label: 'Explore' },
-  { id: 'studio',   icon: Tv2,    label: 'Studio', rainbow: true },
-  { id: 'loudman',  icon: Music2, label: 'Music'   },
-  { id: 'profile',  icon: User,   label: 'Profile' },
+  { id: 'feed',     icon: Home,     label: 'Home'    },
+  { id: 'discover', icon: Search,   label: 'Explore' },
+  { id: 'studio',   icon: Tv2,      label: 'Studio', rainbow: true },
+  { id: 'loudman',  icon: Music2,   label: 'Music'   },
+  { id: 'cutroom',  icon: Scissors, label: 'Cutroom' },
+  { id: 'profile',  icon: User,     label: 'Profile' },
 ]
 
 export default function BottomNav() {
@@ -34,46 +35,36 @@ export default function BottomNav() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex-1 flex flex-col items-center gap-1 py-3 transition-all"
-                style={{ color: isActive ? colors.textPrimary : colors.textMuted }}>
-                {tab.rainbow ? (
-                  <div className="p-1.5 rounded-xl transition-all"
-                    style={isActive
-                      ? { background: gradients.brand, boxShadow: `0 4px 16px ${colors.primary}44` }
-                      : { background: colors.bg600 }}>
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-                ) : (
-                  <Icon className="w-5 h-5 transition-transform"
-                    style={{ transform: isActive ? 'scale(1.15)' : 'scale(1)', color: isActive ? colors.primary : colors.textMuted }} />
-                )}
-                <span className="text-[10px] font-semibold tracking-wide"
-                  style={{ color: isActive && tab.rainbow ? colors.primary : isActive ? colors.primary : colors.textMuted }}>
+                className="flex-1 flex flex-col items-center gap-1 py-2 transition-all"
+                style={{ minWidth: 0 }}
+              >
+                <div className={clsx(
+                  'w-8 h-8 flex items-center justify-center rounded-xl transition-all',
+                  isActive && 'bg-white/10'
+                )}>
+                  <Icon
+                    className="w-5 h-5 transition-all"
+                    style={{
+                      color: isActive
+                        ? (tab.rainbow ? colors.primary : colors.accent)
+                        : 'rgba(255,255,255,0.35)',
+                      filter: isActive && tab.rainbow ? `drop-shadow(0 0 6px ${colors.primary})` : undefined,
+                    }}
+                  />
+                </div>
+                <span
+                  className="text-[9px] font-medium transition-colors truncate w-full text-center px-0.5"
+                  style={{ color: isActive ? colors.accent : 'rgba(255,255,255,0.3)' }}
+                >
                   {tab.label}
                 </span>
               </button>
             )
           })}
-
-          {/* Support button — always visible, never annoying */}
-          <button
-            onClick={() => setShowDonation(true)}
-            className="flex flex-col items-center gap-1 py-3 px-3 transition-all"
-            title="Support the dev ❤️">
-            <Heart className="w-4 h-4" style={{ color: colors.secondary }} />
-            <span className="text-[9px] font-semibold" style={{ color: colors.secondary }}>
-              Support
-            </span>
-          </button>
         </div>
       </nav>
 
-      {showDonation && (
-        <DonationPrompt
-          trigger="manual"
-          onClose={() => setShowDonation(false)}
-        />
-      )}
+      {showDonation && <DonationPrompt onClose={() => setShowDonation(false)} />}
     </>
   )
 }
