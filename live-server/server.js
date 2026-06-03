@@ -325,19 +325,23 @@ app.post('/api/deploy', async (req, res) => {
       `git clone --filter=blob:none --sparse --depth 1 ${REPO_URL} ${tmpDir}`,
       `cd ${tmpDir} && git sparse-checkout set live-server`,
       `rsync -av --exclude=data/ --exclude=node_modules/ ${tmpDir}/live-server/ ${DEPLOY_DIR}/`,
-      `cd ${DEPLOY_DIR} && npm install --omit=dev`,
+      `cd ${DEPLOY_DIR} && npm install --omit=dev 2>&1`,
       `rm -rf ${tmpDir}`,
-      `pm2 restart rainbowland-live`,
     ]
+    // After rsync + npm install, kill this process — Docker restart policy will relaunch with new code
+    // We do this LAST after all cmds run so we get the new files first
+    const restartCmd = `kill -SIGTERM ${process.pid}`
 
     for (const cmd of cmds) {
-      console.log(`[DEPLOY] $ ${cmd.replace(/ghp_[^@]+/g, '***')}`)
-      const { stdout, stderr } = await execAsync(cmd, { timeout: 60000 })
-      if (stdout) console.log('[DEPLOY]', stdout.trim())
-      if (stderr) console.log('[DEPLOY] err:', stderr.trim())
+      console.log(`[DEPLOY] $ ${cmd.replace(/ghp_[^@]+/g, '***').substring(0,80)}`)
+      const { stdout, stderr } = await execAsync(cmd, { timeout: 120000 })
+      if (stdout) console.log('[DEPLOY]', stdout.trim().substring(0,200))
+      if (stderr) console.log('[DEPLOY] err:', stderr.trim().substring(0,200))
     }
 
-    console.log('[DEPLOY] ✅ Done')
+    console.log('[DEPLOY] ✅ Files updated — restarting process...')
+    // Give logs time to flush then exit — Docker will restart with new code
+    setTimeout(() => { process.exit(0) }, 500)
   } catch (err) {
     console.error('[DEPLOY] ❌ Failed:', err.message)
   }
