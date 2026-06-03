@@ -321,16 +321,13 @@ app.post('/api/deploy', async (req, res) => {
 
     // Pull latest live-server files from GitHub via sparse checkout into a temp dir
     const tmpDir = `/tmp/rl-deploy-${Date.now()}`
+    // Use raw GitHub API to download files directly — no git auth needed for public repo
+    const RAW = 'https://raw.githubusercontent.com/Common-joeAI/rainbowland/main/live-server'
+    const FILES = ['server.js', 'videos.js', 'coins.js', 'auth.js', 'package.json']
     const cmds = [
-      `git clone --filter=blob:none --sparse --depth 1 ${REPO_URL} ${tmpDir}`,
-      `cd ${tmpDir} && git sparse-checkout set live-server`,
-      `rsync -av --exclude=data/ --exclude=node_modules/ ${tmpDir}/live-server/ ${DEPLOY_DIR}/`,
-      `cd ${DEPLOY_DIR} && npm install --omit=dev 2>&1`,
-      `rm -rf ${tmpDir}`,
+      ...FILES.map(f => `curl -fsSL ${RAW}/${f} -o ${DEPLOY_DIR}/${f}`),
+      `cd ${DEPLOY_DIR} && npm install --omit=dev 2>&1 | tail -5`,
     ]
-    // After rsync + npm install, kill this process — Docker restart policy will relaunch with new code
-    // We do this LAST after all cmds run so we get the new files first
-    const restartCmd = `kill -SIGTERM ${process.pid}`
 
     for (const cmd of cmds) {
       console.log(`[DEPLOY] $ ${cmd.replace(/ghp_[^@]+/g, '***').substring(0,80)}`)
