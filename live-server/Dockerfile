@@ -18,7 +18,7 @@ COPY package.json ./
 RUN npm install --omit=dev
 
 COPY nginx.conf /etc/nginx/nginx.conf
-COPY server.js  ./
+COPY *.js       ./
 COPY start.sh   ./
 RUN chmod +x start.sh
 
