@@ -10,3 +10,4 @@ exec node /app/server.js
 # graceful-video-boot: 2026-06-03 02:20:06 UTC
 # clean-boot: 2026-06-03 02:23:32
 # fix-deploy: 2026-06-03 02:25:09
+# deploy-dir-fix: 2026-06-03 02:28:57
