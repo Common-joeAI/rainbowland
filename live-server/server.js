@@ -1,31 +1,22 @@
 /**
  * Rainbow Land — Live API + Chat + Coin Server
- *
- * Handles:
- *  - RTMP lifecycle callbacks
- *  - REST API (streams, stream keys)
- *  - WebSocket chat + live gift events
- *  - Coin ledger (SQLite via coins.js)
- *  - PayPal IPN verification (coins only credited after PayPal confirms)
- *  - Short video upload / feed / likes / comments
  */
 
-import express         from 'express'
+import express          from 'express'
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import { randomBytes, createHash } from 'crypto'
-import https           from 'https'
-import querystring     from 'querystring'
-import path            from 'path'
+import https            from 'https'
+import querystring      from 'querystring'
+import path             from 'path'
 import { fileURLToPath } from 'url'
-import { mkdirSync }   from 'fs'
-import fs              from 'fs'
-import { exec }        from 'child_process'
-import { promisify }   from 'util'
-
+import { mkdirSync, existsSync } from 'fs'
+import fs               from 'fs'
+import { exec }         from 'child_process'
+import { promisify }    from 'util'
 const execAsync = promisify(exec)
 
-// __dirname shim for ES modules — must be defined BEFORE anything that uses it
+// __dirname shim — MUST be before anything using it
 const __filename = fileURLToPath(import.meta.url)
 const __dirname  = path.dirname(__filename)
 
@@ -34,53 +25,9 @@ const STREAM_SECRET = process.env.STREAM_SECRET   || 'rl-secret-change-me'
 const PAYPAL_EMAIL  = process.env.PAYPAL_EMAIL     || 'josephbennett99@paypal.com'
 const PAYPAL_MODE   = process.env.PAYPAL_MODE      || 'live'
 
-// ── Video DB + Upload (graceful — loads after npm install if deps missing) ────
-let initVideoDB, createVideo, listVideos, getVideo, toggleLike, addComment, getComments, getUserLikes
-let videoUpload
-let VIDEO_READY = false
-
-try {
-  const videosModule = await import('./videos.js')
-  initVideoDB   = videosModule.initVideoDB
-  createVideo   = videosModule.createVideo
-  listVideos    = videosModule.listVideos
-  getVideo      = videosModule.getVideo
-  toggleLike    = videosModule.toggleLike
-  addComment    = videosModule.addComment
-  getComments   = videosModule.getComments
-  getUserLikes  = videosModule.getUserLikes
-
-  try { mkdirSync(path.join(__dirname, 'data', 'videos'), { recursive: true }) } catch {}
-  try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
-  initVideoDB()
-
-  const { default: multerLib } = await import('multer')
-  const { v4: uuidv4lib }      = await import('uuid')
-  const VIDEO_DIR = path.join(__dirname, 'data', 'videos')
-
-  videoUpload = multerLib({
-    storage: multerLib.diskStorage({
-      destination: (req, file, cb) => cb(null, VIDEO_DIR),
-      filename:    (req, file, cb) => {
-        const ext = path.extname(file.originalname) || '.mp4'
-        cb(null, `${uuidv4lib()}${ext}`)
-      }
-    }),
-    limits: { fileSize: 500 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-      if (file.mimetype.startsWith('video/')) cb(null, true)
-      else cb(new Error('Only video files allowed'))
-    }
-  })
-
-  // Expose VIDEO_DIR for static serving
-  app.use('/videos', (await import('express')).default.static(VIDEO_DIR))
-
-  VIDEO_READY = true
-  console.log('[VIDEO] Module loaded — upload enabled')
-} catch (e) {
-  console.warn('[VIDEO] Module not ready (run npm install):', e.message)
-}
+// Ensure data dirs exist
+try { mkdirSync(path.join(__dirname, 'data', 'videos'), { recursive: true }) } catch {}
+try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
 
 // ── Coin DB ───────────────────────────────────────────────────────────────────
 import {
