@@ -22,6 +22,8 @@ COPY server.js  ./
 COPY start.sh   ./
 RUN chmod +x start.sh
 
+RUN mkdir -p /app/data/videos /app/data
+
 EXPOSE 1935 8080 4000
 
 CMD ["/app/start.sh"]
