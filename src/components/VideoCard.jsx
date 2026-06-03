@@ -158,6 +158,7 @@ export default function VideoCard({ video, isActive }) {
           playsInline
           muted={isMuted}
           preload="metadata"
+        onError={e => { e.target.style.opacity = "0" }}
         />
       )}
 
@@ -195,7 +196,7 @@ export default function VideoCard({ video, isActive }) {
         <div className="relative">
           <div className="rainbow-border rounded-full p-0.5">
             <div className="w-12 h-12 rounded-full bg-dark-600 flex items-center justify-center text-2xl">
-              {video.creator.avatar}
+              {video.creator?.avatar}
             </div>
           </div>
           <button className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-5 h-5 bg-gradient-to-r from-rainbow-pink to-rainbow-purple rounded-full flex items-center justify-center text-xs font-bold">+</button>
@@ -247,31 +248,31 @@ export default function VideoCard({ video, isActive }) {
       {/* Bottom info */}
       <div className="absolute bottom-20 left-4 right-16 z-10">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className="font-bold text-white text-base">{video.creator.name}</span>
-          {video.creator.verified && (
+          <span className="font-bold text-white text-base">{video.creator?.name}</span>
+          {video.creator?.verified && (
             <span className="text-xs bg-gradient-to-r from-rainbow-blue to-rainbow-purple px-1.5 py-0.5 rounded-full text-white font-semibold">✓</span>
           )}
           {/* Pronoun badge */}
-          {video.creator.pronouns && (
+          {video.creator?.pronouns && (
             <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
               style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}>
               {video.creator.pronouns}
             </span>
           )}
           {/* Pride flag stripe badge */}
-          {video.creator.prideFlag && PRIDE_FLAGS[video.creator.prideFlag] && (
+          {video.creator?.prideFlag && PRIDE_FLAGS[video.creator?.prideFlag] && (
             <span
-              title={video.creator.prideFlag}
+              title={video.creator?.prideFlag || ""}
               className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium overflow-hidden"
               style={{
-                background: `linear-gradient(90deg, ${PRIDE_FLAGS[video.creator.prideFlag].colors.join(',')})`,
+                background: `linear-gradient(90deg, ${PRIDE_FLAGS[video.creator?.prideFlag]?.colors.join(',')})`,
                 color: '#fff',
                 textShadow: '0 1px 3px rgba(0,0,0,0.8)',
                 fontWeight: 700,
                 fontSize: 10,
               }}
             >
-              {PRIDE_FLAGS[video.creator.prideFlag].emoji}
+              {PRIDE_FLAGS[video.creator?.prideFlag]?.emoji}
             </span>
           )}
         </div>
