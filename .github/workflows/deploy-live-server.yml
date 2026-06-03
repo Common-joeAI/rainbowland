@@ -17,21 +17,21 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_SSH_USER }}
-          password: ${{ secrets.VPS_SSH_PASSWORD }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          script_stop: false
-          timeout: 180s
-          command_timeout: 10m
+          timeout: 120s
+          command_timeout: 5m
           script: |
             set -e
-            if [ -d /home/cjoe/rainbowland ]; then
-              cd /home/cjoe/rainbowland && git pull origin main
-            else
-              git clone https://Common-joeAI:${{ secrets.GH_TOKEN }}@github.com/Common-joeAI/rainbowland.git /home/cjoe/rainbowland
-            fi
-            cd /home/cjoe/rainbowland/live-server
-            docker compose down --remove-orphans
-            docker compose up --build -d
-            docker ps | grep rl-live
-            sleep 3
-            docker logs rl-live --tail=25 2>&1
+            DEPLOY_DIR=/home/cjoe/rainbowland-live
+            RAW=https://raw.githubusercontent.com/Common-joeAI/rainbowland/main/live-server
+            for f in server.js videos.js auth.js coins.js package.json; do
+              curl -fsSL $RAW/$f -o $DEPLOY_DIR/$f
+            done
+            cd $DEPLOY_DIR && npm install --omit=dev --silent
+            fuser -k 4000/tcp 2>/dev/null || true
+            sleep 1
+            nohup node server.js > /tmp/rl-server.log 2>&1 &
+            sleep 4
+            ss -tlnp | grep 4000 && echo "✅ Server up" || echo "❌ Server not listening"
+            cat /tmp/rl-server.log | head -5
