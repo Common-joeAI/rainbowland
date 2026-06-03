@@ -30,10 +30,14 @@ export default function ProfilePage() {
 
   async function handleBecomeHost() {
     setHostLoading(true)
-    const result = await becomeHost()
-    if (result.ok) {
-      setUser({ role: 'host' })
-      setHostDone(true)
+    try {
+      const result = await becomeHost()
+      if (result.ok) {
+        setUser({ role: 'host' })
+        setHostDone(true)
+      }
+    } catch (err) {
+      console.error('becomeHost error:', err)
     }
     setHostLoading(false)
   }
