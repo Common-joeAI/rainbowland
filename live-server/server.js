@@ -14,6 +14,7 @@ import { mkdirSync, existsSync } from 'fs'
 import fs               from 'fs'
 import { exec }         from 'child_process'
 import { promisify }    from 'util'
+import multer           from 'multer'
 const execAsync = promisify(exec)
 
 // __dirname shim — MUST be before anything using it
@@ -39,7 +40,15 @@ import {
 try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
 initCoinDB()
 
+// ── Video DB ──────────────────────────────────────────────────────────────────
+import {
+  initVideoDB, createVideo, getVideo, listVideos,
+  toggleLike, addComment, getComments, getUserLikes
+} from './videos.js'
+initVideoDB()
+
 // ── Auth DB ───────────────────────────────────────────────────────────────────
+import {
   initAuthDB, registerUser, loginUser, refreshAccessToken,
   updateProfile, upgradeToHost, verifyJWT, getUserById
 } from './auth.js'
@@ -51,7 +60,27 @@ const server = createServer(app)
 const wss    = new WebSocketServer({ server, path: '/ws' })
 
 app.use(express.urlencoded({ extended: true }))
+// ── Video upload (multer) ─────────────────────────────────────────────────────
+const VIDEO_DIR = path.join(__dirname, 'data', 'videos')
+const videoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, VIDEO_DIR),
+    filename:    (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.mp4'
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`)
+    }
+  }),
+  limits:     { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /^video\//.test(file.mimetype)
+    cb(ok ? null : new Error('Video files only'), ok)
+  }
+})
+const VIDEO_READY = true
+
+
 app.use(express.json())
+app.use('/videos', express.static(VIDEO_DIR))
 
 // ── Static public assets (icon, favicon, legal pages) ─────────────────────────
 // ── Legal pages ───────────────────────────────────────────────────────────────
@@ -123,8 +152,8 @@ app.post('/api/auth/register', (req, res) => {
 
 /** POST /api/auth/login */
 app.post('/api/auth/login', (req, res) => {
-  const { identifier, password } = req.body
-  const result = loginUser({ identifier, password })
+  const { identifier, email, password } = req.body
+  const result = loginUser({ identifier: identifier || email, password })
   if (!result.ok) return res.status(401).json(result)
   res.json(result)
 })
@@ -308,7 +337,7 @@ app.get('/api/coins/earnings/:creatorId', requireUser, (req, res) => {
 const DEPLOY_SECRET = process.env.DEPLOY_SECRET || 'rl-deploy-secret-change-me'
 const GH_TOKEN = process.env.GH_TOKEN || ''
 const REPO_URL = `https://Common-joeAI:${GH_TOKEN}@github.com/Common-joeAI/rainbowland.git`
-const DEPLOY_DIR = process.env.DEPLOY_DIR || '/app'
+const DEPLOY_DIR = process.env.DEPLOY_DIR || '/home/cjoe/rainbowland-live'
 
 app.post('/api/deploy', async (req, res) => {
   const { secret } = req.body
