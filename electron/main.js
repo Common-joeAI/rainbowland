@@ -10,7 +10,13 @@ const https  = require('https')
 let autoUpdater = null
 try {
   autoUpdater = require('electron-updater').autoUpdater
-  autoUpdater.autoDownload    = false   // ask user first
+  autoUpdater.autoDownload    = false
+  autoUpdater.allowPrerelease = false
+  if (isDev) {
+    // In dev, updater needs forceDevUpdateConfig to test — skip silently
+    console.log('[updater] dev mode — update checks disabled')
+    autoUpdater = null
+  }   // ask user first
   autoUpdater.autoInstallOnAppQuit = true
 } catch (e) {
   console.warn('[updater] electron-updater not available:', e.message)
@@ -273,8 +279,8 @@ function setupAutoUpdater() {
 }
 
 app.whenReady().then(() => {
-  setupAutoUpdater()
   createWindow()
+  setupAutoUpdater()   // must be after createWindow so mainWindow exists
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
