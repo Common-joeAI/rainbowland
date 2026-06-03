@@ -15,3 +15,4 @@ exec node /app/server.js
 # curl-deploy: 2026-06-03 02:31:32
 # sync-deploy: 2026-06-03 02:33:10
 # ssh-deploy-trigger: 2026-06-03 02:34:30
+# ssh-key-deploy: 2026-06-03 02:36:11
