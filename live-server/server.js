@@ -16,6 +16,20 @@ import { exec }         from 'child_process'
 import { promisify }    from 'util'
 import multer           from 'multer'
 import { v4 as uuidv4 } from 'uuid'
+import {
+  initCoinDB, getBalance, creditCoins,
+  sendGift, getTopGifters, getRecentGifts,
+  getCreatorEarnings, COIN_PACKS, GIFT_CATALOGUE
+} from './coins.js'
+import {
+  initVideoDB, createVideo, getVideo, listVideos,
+  toggleLike, addComment, getComments, getUserLikes
+} from './videos.js'
+import {
+  initAuthDB, registerUser, loginUser, refreshAccessToken,
+  updateProfile, upgradeToHost, verifyJWT, getUserById
+} from './auth.js'
+
 const execAsync = promisify(exec)
 
 // __dirname shim — MUST be before anything using it
@@ -32,27 +46,13 @@ try { mkdirSync(path.join(__dirname, 'data', 'videos'), { recursive: true }) } c
 try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
 
 // ── Coin DB ───────────────────────────────────────────────────────────────────
-import {
-  initCoinDB, getBalance, creditCoins,
-  sendGift, getTopGifters, getRecentGifts,
-  getCreatorEarnings, COIN_PACKS, GIFT_CATALOGUE
-} from './coins.js'
-
 try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
 initCoinDB()
 
 // ── Video DB ──────────────────────────────────────────────────────────────────
-import {
-  initVideoDB, createVideo, getVideo, listVideos,
-  toggleLike, addComment, getComments, getUserLikes
-} from './videos.js'
 initVideoDB()
 
 // ── Auth DB ───────────────────────────────────────────────────────────────────
-import {
-  initAuthDB, registerUser, loginUser, refreshAccessToken,
-  updateProfile, upgradeToHost, verifyJWT, getUserById
-} from './auth.js'
 initAuthDB()
 
 // ── Express setup ─────────────────────────────────────────────────────────────
@@ -60,7 +60,6 @@ const app    = express()
 const server = createServer(app)
 const wss    = new WebSocketServer({ server, path: '/ws' })
 
-app.use(express.urlencoded({ extended: true }))
 // ── Video upload (multer) ─────────────────────────────────────────────────────
 const VIDEO_DIR = path.join(__dirname, 'data', 'videos')
 const videoUpload = multer({
@@ -79,17 +78,17 @@ const videoUpload = multer({
 })
 const VIDEO_READY = true
 
-
+app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
 app.use('/videos', express.static(VIDEO_DIR))
 
 // ── Static public assets (icon, favicon, legal pages) ─────────────────────────
 // ── Legal pages ───────────────────────────────────────────────────────────────
 app.get('/privacy', (req, res) =>
-  res.sendFile(join(__dirname, 'public', 'privacy.html'))
+  res.sendFile(path.join(__dirname, 'public', 'privacy.html'))
 )
 app.get('/terms', (req, res) =>
-  res.sendFile(join(__dirname, 'public', 'terms.html'))
+  res.sendFile(path.join(__dirname, 'public', 'terms.html'))
 )
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
@@ -687,4 +686,3 @@ app.post('/api/videos/:id/comments', requireUser, (req, res) => {
 })
 
 server.listen(PORT, () => console.log(`[RL Server] :${PORT} — coin ledger active`))
-
