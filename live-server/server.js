@@ -15,6 +15,7 @@ import fs               from 'fs'
 import { exec }         from 'child_process'
 import { promisify }    from 'util'
 import multer           from 'multer'
+import { v4 as uuidv4 } from 'uuid'
 const execAsync = promisify(exec)
 
 // __dirname shim — MUST be before anything using it
