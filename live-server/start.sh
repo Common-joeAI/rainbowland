@@ -12,3 +12,4 @@ exec node /app/server.js
 # fix-deploy: 2026-06-03 02:25:09
 # deploy-dir-fix: 2026-06-03 02:28:57
 # env-fix: 2026-06-03 02:31:11
+# curl-deploy: 2026-06-03 02:31:32
