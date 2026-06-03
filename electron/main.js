@@ -279,6 +279,7 @@ function setupAutoUpdater() {
 }
 
 app.whenReady().then(() => {
+  try {
   createWindow()
   // Wait for window to be ready before hooking up the updater
   if (mainWindow) {
@@ -290,6 +291,11 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+  } catch (err) {
+    console.error('[startup] Fatal error:', err)
+  }
+}).catch(err => {
+  console.error('[whenReady] Failed:', err)
 })
 
 app.on('window-all-closed', () => {
