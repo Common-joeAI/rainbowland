@@ -16,26 +16,22 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          password: ${{ secrets.VPS_SSH_PASSWORD }}
           port: 22
           script_stop: false
           timeout: 180s
           command_timeout: 10m
           script: |
             set -e
-            # Clone or update repo
-            if [ -d /opt/rainbowland ]; then
-              cd /opt/rainbowland && git pull origin main
+            if [ -d /home/cjoe/rainbowland ]; then
+              cd /home/cjoe/rainbowland && git pull origin main
             else
-              git clone https://Common-joeAI:${{ secrets.GH_TOKEN }}@github.com/Common-joeAI/rainbowland.git /opt/rainbowland
-              cd /opt/rainbowland
+              git clone https://Common-joeAI:${{ secrets.GH_TOKEN }}@github.com/Common-joeAI/rainbowland.git /home/cjoe/rainbowland
             fi
-            # Rebuild and restart container
-            cd /opt/rainbowland/live-server
+            cd /home/cjoe/rainbowland/live-server
             docker compose down --remove-orphans
             docker compose up --build -d
-            echo "=== Container status ==="
-            docker ps | grep rl-live || echo "Container not running!"
+            docker ps | grep rl-live
             sleep 3
-            docker logs rl-live --tail=20 2>&1
+            docker logs rl-live --tail=25 2>&1
