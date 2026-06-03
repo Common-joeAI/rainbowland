@@ -37,7 +37,7 @@ export default function FeedPage() {
   }, [setVideoIndex, videos])
 
   return (
-    <div className="h-full relative">
+    <div className="h-full relative overflow-hidden">
       {/* Top header */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-4 pb-2 pointer-events-none">
         <div className="pointer-events-auto pl-10">
