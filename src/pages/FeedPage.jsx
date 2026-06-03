@@ -89,7 +89,7 @@ export default function FeedPage() {
         ) : (
           videos.map((video, idx) => (
             <div key={video.id} data-index={idx} className="feed-item">
-              <VideoCard video={video} isActive={currentVideoIndex === idx} />
+              <VideoCard video={video} isActive={currentVideoIndex === idx} key={video?.id || idx} />
             </div>
           ))
         )}
@@ -97,7 +97,7 @@ export default function FeedPage() {
 
       {/* Comments drawer */}
       {showComments && (
-        <CommentsDrawer videoId={videos[currentVideoIndex]?.id} />
+        <CommentsDrawer videoId={videos[currentVideoIndex]?.id || null} />
       )}
     </div>
   )
