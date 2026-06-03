@@ -8,12 +8,16 @@ services:
     ports:
       - "1935:1935"   # RTMP ingest (from Electron app FFmpeg)
       - "8080:8080"   # HLS + API  (proxied by Nginx on VPS)
-      - "4000:4000"   # Chat WebSocket
+      - "4000:4000"   # Chat WebSocket + REST API
     environment:
       - PORT=4000
       - STREAM_SECRET=${STREAM_SECRET:-rl-secret-change-me}
     volumes:
       - hls_data:/tmp/rl-hls
+      - video_data:/app/data/videos   # uploaded short videos — persists across restarts
+      - db_data:/app/data             # SQLite databases (coins, auth, videos)
 
 volumes:
   hls_data:
+  video_data:
+  db_data:
