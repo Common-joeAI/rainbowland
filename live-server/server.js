@@ -543,6 +543,39 @@ function broadcastGlobal(obj) {
 }
 
 
+
+/** POST /api/deploy/sync — synchronous deploy that returns full output (debug) */
+app.post('/api/deploy/sync', async (req, res) => {
+  const { secret } = req.body
+  if (secret !== DEPLOY_SECRET) return res.status(403).json({ error: 'forbidden' })
+  const log = []
+  try {
+    const RAW = 'https://raw.githubusercontent.com/Common-joeAI/rainbowland/main/live-server'
+    const FILES = ['server.js', 'videos.js', 'coins.js', 'auth.js', 'package.json']
+    for (const f of FILES) {
+      const cmd = `curl -fsSL ${RAW}/${f} -o ${DEPLOY_DIR}/${f}`
+      log.push(`$ ${cmd}`)
+      try {
+        const { stdout, stderr } = await execAsync(cmd, { timeout: 30000 })
+        log.push(stdout || '(ok)')
+        if (stderr) log.push('ERR: ' + stderr.slice(0,200))
+      } catch(e) { log.push('FAILED: ' + e.message) }
+    }
+    const npmCmd = `cd ${DEPLOY_DIR} && npm install --omit=dev 2>&1`
+    log.push(`$ npm install`)
+    try {
+      const { stdout } = await execAsync(npmCmd, { timeout: 90000 })
+      log.push(stdout.trim().split('\n').slice(-5).join('\n'))
+    } catch(e) { log.push('npm FAILED: ' + e.message) }
+    log.push('DEPLOY_DIR: ' + DEPLOY_DIR)
+    log.push('CWD: ' + process.cwd())
+    res.json({ ok: true, log })
+    setTimeout(() => process.exit(0), 500)
+  } catch(err) {
+    res.status(500).json({ ok: false, error: err.message, log })
+  }
+})
+
 // ════════════════════════════════════════════════════════════════════════════════
 // VIDEO ROUTES
 // ════════════════════════════════════════════════════════════════════════════════
