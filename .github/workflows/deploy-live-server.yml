@@ -4,18 +4,18 @@ on:
   push:
     branches: [main]
     paths:
-      - 'live-server/**'   # only trigger when live-server files change
+      - 'live-server/**'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping VPS deploy webhook
+      - name: Trigger deploy webhook (hot reload)
         run: |
-          echo "Triggering deploy on live.rainbowland.cc..."
+          echo "Triggering hot reload deploy..."
           curl -s -X POST https://live.rainbowland.cc/api/deploy \
             -H "Content-Type: application/json" \
             -d "{\"secret\":\"${{ secrets.DEPLOY_SECRET }}\"}" \
-            --max-time 15
+            --max-time 30
           echo ""
-          echo "✅ Deploy webhook triggered — server will pull + restart"
+          echo "Deploy webhook triggered"
