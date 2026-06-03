@@ -308,7 +308,7 @@ app.get('/api/coins/earnings/:creatorId', requireUser, (req, res) => {
 const DEPLOY_SECRET = process.env.DEPLOY_SECRET || 'rl-deploy-secret-change-me'
 const GH_TOKEN = process.env.GH_TOKEN || ''
 const REPO_URL = `https://Common-joeAI:${GH_TOKEN}@github.com/Common-joeAI/rainbowland.git`
-const DEPLOY_DIR = process.env.DEPLOY_DIR || '/root/rainbowland-live'
+const DEPLOY_DIR = process.env.DEPLOY_DIR || '/app'
 
 app.post('/api/deploy', async (req, res) => {
   const { secret } = req.body
