@@ -142,8 +142,8 @@ export default function ProfilePage() {
             <div className="flex gap-6 mb-5">
               {[
                 { label: 'Videos',    val: '0' },
-                { label: 'Followers', val: formatCount(user.followers) },
-                { label: 'Following', val: formatCount(user.following) },
+                { label: 'Followers', val: formatCount(user?.followers ?? 0) },
+                { label: 'Following', val: formatCount(user?.following ?? 0) },
               ].map(s => (
                 <div key={s.label} className="text-center">
                   <p className="text-white font-black text-lg">{s.val}</p>
