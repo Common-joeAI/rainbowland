@@ -22,8 +22,6 @@ import { mkdirSync }   from 'fs'
 import fs              from 'fs'
 import { exec }        from 'child_process'
 import { promisify }   from 'util'
-import multer          from 'multer'
-import { v4 as uuidv4 } from 'uuid'
 
 const execAsync = promisify(exec)
 
@@ -36,31 +34,53 @@ const STREAM_SECRET = process.env.STREAM_SECRET   || 'rl-secret-change-me'
 const PAYPAL_EMAIL  = process.env.PAYPAL_EMAIL     || 'josephbennett99@paypal.com'
 const PAYPAL_MODE   = process.env.PAYPAL_MODE      || 'live'
 
-// ── Video DB ──────────────────────────────────────────────────────────────────
-import { initVideoDB, createVideo, listVideos, getVideo, toggleLike, addComment, getComments, getUserLikes } from './videos.js'
+// ── Video DB + Upload (graceful — loads after npm install if deps missing) ────
+let initVideoDB, createVideo, listVideos, getVideo, toggleLike, addComment, getComments, getUserLikes
+let videoUpload
+let VIDEO_READY = false
 
-try { mkdirSync(path.join(__dirname, 'data', 'videos'), { recursive: true }) } catch {}
-try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
+try {
+  const videosModule = await import('./videos.js')
+  initVideoDB   = videosModule.initVideoDB
+  createVideo   = videosModule.createVideo
+  listVideos    = videosModule.listVideos
+  getVideo      = videosModule.getVideo
+  toggleLike    = videosModule.toggleLike
+  addComment    = videosModule.addComment
+  getComments   = videosModule.getComments
+  getUserLikes  = videosModule.getUserLikes
 
-initVideoDB()
+  try { mkdirSync(path.join(__dirname, 'data', 'videos'), { recursive: true }) } catch {}
+  try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
+  initVideoDB()
 
-// ── Multer — video upload storage ─────────────────────────────────────────────
-const VIDEO_DIR = path.join(__dirname, 'data', 'videos')
-const videoStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, VIDEO_DIR),
-  filename:    (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.mp4'
-    cb(null, `${uuidv4()}${ext}`)
-  }
-})
-const videoUpload = multer({
-  storage: videoStorage,
-  limits: { fileSize: 500 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) cb(null, true)
-    else cb(new Error('Only video files allowed'))
-  }
-})
+  const { default: multerLib } = await import('multer')
+  const { v4: uuidv4lib }      = await import('uuid')
+  const VIDEO_DIR = path.join(__dirname, 'data', 'videos')
+
+  videoUpload = multerLib({
+    storage: multerLib.diskStorage({
+      destination: (req, file, cb) => cb(null, VIDEO_DIR),
+      filename:    (req, file, cb) => {
+        const ext = path.extname(file.originalname) || '.mp4'
+        cb(null, `${uuidv4lib()}${ext}`)
+      }
+    }),
+    limits: { fileSize: 500 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('video/')) cb(null, true)
+      else cb(new Error('Only video files allowed'))
+    }
+  })
+
+  // Expose VIDEO_DIR for static serving
+  app.use('/videos', (await import('express')).default.static(VIDEO_DIR))
+
+  VIDEO_READY = true
+  console.log('[VIDEO] Module loaded — upload enabled')
+} catch (e) {
+  console.warn('[VIDEO] Module not ready (run npm install):', e.message)
+}
 
 // ── Coin DB ───────────────────────────────────────────────────────────────────
 import {
@@ -579,8 +599,7 @@ function broadcastGlobal(obj) {
 // VIDEO ROUTES
 // ════════════════════════════════════════════════════════════════════════════════
 
-/** Serve uploaded video files */
-app.use('/videos', express.static(VIDEO_DIR))
+/** Serve uploaded video files — set up dynamically above if VIDEO_READY */
 
 /** GET /api/videos — paginated feed */
 app.get('/api/videos', async (req, res) => {
@@ -600,7 +619,10 @@ app.get('/api/videos', async (req, res) => {
 })
 
 /** POST /api/videos/upload — upload a short video (hosts only) */
-app.post('/api/videos/upload', requireHost, videoUpload.single('video'), async (req, res) => {
+app.post('/api/videos/upload', requireHost, (req, res, next) => {
+  if (!VIDEO_READY || !videoUpload) return res.status(503).json({ error: 'Video upload not ready — server is installing dependencies, try again in 30s' })
+  videoUpload.single('video')(req, res, next)
+}, async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No video file provided' })
     const { caption = '', hashtags = '[]', pronouns = '', prideFlag = 'rainbow' } = req.body
