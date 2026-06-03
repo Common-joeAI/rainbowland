@@ -73,7 +73,6 @@ try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
 initCoinDB()
 
 // ── Auth DB ───────────────────────────────────────────────────────────────────
-import {
   initAuthDB, registerUser, loginUser, refreshAccessToken,
   updateProfile, upgradeToHost, verifyJWT, getUserById
 } from './auth.js'
