@@ -22,6 +22,34 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 const execAsync = promisify(exec)
 
+import multer      from 'multer'
+import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs'
+import { initVideoDB, createVideo, listVideos, getVideo, toggleLike, addComment, getComments, getUserLikes } from './videos.js'
+
+// ── Video upload storage ──────────────────────────────────────────────────────
+const VIDEO_DIR = path.join(__dirname, 'data', 'videos')
+try { mkdirSync(VIDEO_DIR, { recursive: true }) } catch {}
+
+const videoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, VIDEO_DIR),
+  filename:    (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.mp4'
+    cb(null, `${uuidv4()}${ext}`)
+  }
+})
+const videoUpload = multer({
+  storage: videoStorage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) cb(null, true)
+    else cb(new Error('Only video files allowed'))
+  }
+})
+
+initVideoDB()
+
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const PORT          = parseInt(process.env.PORT)          || 4000
@@ -547,6 +575,85 @@ function broadcastGlobal(obj) {
     if (client.readyState === 1) client.send(msg)
   }
 }
+
+
+// ════════════════════════════════════════════════════════════════════════════════
+// VIDEO ROUTES
+// ════════════════════════════════════════════════════════════════════════════════
+
+/** Serve uploaded video files */
+app.use('/videos', express.static(VIDEO_DIR))
+
+/** GET /api/videos — paginated feed */
+app.get('/api/videos', async (req, res) => {
+  const { limit = 20, offset = 0, tag, q } = req.query
+  const videos = listVideos({ limit: parseInt(limit), offset: parseInt(offset), tag, query: q })
+  // Annotate liked status if authed
+  let likedIds = []
+  try {
+    const authHeader = req.headers['authorization'] || ''
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (token) {
+      const payload = verifyJWT(token)
+      if (payload) likedIds = getUserLikes(payload.sub, videos.map(v => v.id))
+    }
+  } catch {}
+  res.json({ videos: videos.map(v => ({ ...v, liked: likedIds.includes(v.id) })) })
+})
+
+/** POST /api/videos/upload — upload a short video (hosts only) */
+app.post('/api/videos/upload', requireHost, videoUpload.single('video'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No video file provided' })
+    const { caption = '', hashtags = '[]', pronouns = '', prideFlag = 'rainbow' } = req.body
+    const user = getUserById(req.userId)
+    const videoUrl = `/videos/${req.file.filename}`
+    const video = createVideo({
+      id:          uuidv4(),
+      creatorId:   req.userId,
+      handle:      req.handle,
+      displayName: user?.display_name || req.handle,
+      avatar:      user?.avatar_emoji || '🌈',
+      pronouns:    user?.pronouns || pronouns,
+      prideFlag:   user?.pride_flag || prideFlag,
+      caption:     caption.slice(0, 300),
+      hashtags:    JSON.parse(hashtags),
+      filename:    req.file.filename,
+      url:         videoUrl,
+    })
+    res.json({ ok: true, video })
+  } catch (err) {
+    console.error('Upload error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/** POST /api/videos/:id/like */
+app.post('/api/videos/:id/like', requireUser, (req, res) => {
+  const result = toggleLike(req.params.id, req.userId)
+  const video  = getVideo(req.params.id)
+  res.json({ ...result, likes: video?.likes ?? 0 })
+})
+
+/** GET /api/videos/:id/comments */
+app.get('/api/videos/:id/comments', (req, res) => {
+  res.json({ comments: getComments(req.params.id) })
+})
+
+/** POST /api/videos/:id/comments */
+app.post('/api/videos/:id/comments', requireUser, (req, res) => {
+  const { text } = req.body
+  if (!text?.trim()) return res.status(400).json({ error: 'Comment text required' })
+  const user = getUserById(req.userId)
+  const comment = addComment(req.params.id, {
+    userId:      req.userId,
+    handle:      req.handle,
+    displayName: user?.display_name || req.handle,
+    avatar:      user?.avatar_emoji || '🌈',
+    text:        text.slice(0, 500),
+  })
+  res.json({ ok: true, comment })
+})
 
 server.listen(PORT, () => console.log(`[RL Server] :${PORT} — coin ledger active`))
 
