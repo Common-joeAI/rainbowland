@@ -10,12 +10,23 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger deploy webhook (hot reload)
-        run: |
-          echo "Triggering hot reload deploy..."
-          curl -s -X POST https://live.rainbowland.cc/api/deploy \
-            -H "Content-Type: application/json" \
-            -d "{\"secret\":\"${{ secrets.DEPLOY_SECRET }}\"}" \
-            --max-time 30
-          echo ""
-          echo "Deploy webhook triggered"
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_SSH_PASSWORD }}
+          port: 22
+          script_stop: false
+          timeout: 120s
+          script: |
+            set -e
+            cd /root/rainbowland 2>/dev/null || cd /opt/rainbowland 2>/dev/null || (git clone https://Common-joeAI:${{ secrets.GH_TOKEN }}@github.com/Common-joeAI/rainbowland.git /opt/rainbowland && cd /opt/rainbowland)
+            git pull origin main
+            cd live-server
+            docker compose down
+            docker compose up --build -d
+            echo "✅ Deploy complete"
+            docker ps | grep rl-live
