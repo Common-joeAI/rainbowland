@@ -280,7 +280,13 @@ function setupAutoUpdater() {
 
 app.whenReady().then(() => {
   createWindow()
-  setupAutoUpdater()   // must be after createWindow so mainWindow exists
+  // Wait for window to be ready before hooking up the updater
+  if (mainWindow) {
+    mainWindow.once('ready-to-show', () => {
+      setupAutoUpdater()
+      if (!isDev) setTimeout(() => checkForUpdates(), 5000)
+    })
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
