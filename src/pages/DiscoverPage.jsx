@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Search, TrendingUp, Plus, Upload, X, CheckCircle,
          Heart, MessageCircle, Share2, Volume2, VolumeX, Play, Music2 } from 'lucide-react'
-import { MOCK_TRENDING_TAGS } from '../api/mockData'
+import { MOCK_TRENDING_TAGS, MOCK_VIDEOS } from '../api/mockData'
 import { suggestHashtags } from '../api/grok'
 import { fetchVideos, uploadVideo, likeVideo } from '../api/videos'
 import { useStore } from '../hooks/useStore'
