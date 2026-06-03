@@ -6,16 +6,18 @@ services:
     container_name: rl-live
     restart: unless-stopped
     ports:
-      - "1935:1935"   # RTMP ingest (from Electron app FFmpeg)
-      - "8080:8080"   # HLS + API  (proxied by Nginx on VPS)
-      - "4000:4000"   # Chat WebSocket + REST API
+      - "1935:1935"
+      - "8080:8080"
+      - "4000:4000"
     environment:
       - PORT=4000
       - STREAM_SECRET=${STREAM_SECRET:-rl-secret-change-me}
+      - DEPLOY_SECRET=${DEPLOY_SECRET:-rl-deploy-secret-change-me}
+      - GH_TOKEN=${GH_TOKEN}
     volumes:
       - hls_data:/tmp/rl-hls
-      - video_data:/app/data/videos   # uploaded short videos — persists across restarts
-      - db_data:/app/data             # SQLite databases (coins, auth, videos)
+      - video_data:/app/data/videos
+      - db_data:/app/data
 
 volumes:
   hls_data:
