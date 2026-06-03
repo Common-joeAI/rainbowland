@@ -18,6 +18,7 @@ export default function VideoCard({ video, isActive }) {
   const [doubleTapTimer, setDoubleTapTimer] = useState(null)
 
   const isAudio = video.type === 'audio'
+  const videoSrc = video.videoUrl || video.url || ''
 
   // Mutual Aid — show button if video has relevant tags
   const videoTags = (video.hashtags || []).map(t => t.toLowerCase().replace('#',''))
@@ -152,7 +153,7 @@ export default function VideoCard({ video, isActive }) {
       ) : (
         <video
           ref={videoRef}
-          src={video.videoUrl}
+          src={videoSrc}
           className="absolute inset-0 w-full h-full object-cover"
           loop
           playsInline
