@@ -7,30 +7,45 @@
  *  - WebSocket chat + live gift events
  *  - Coin ledger (SQLite via coins.js)
  *  - PayPal IPN verification (coins only credited after PayPal confirms)
+ *  - Short video upload / feed / likes / comments
  */
 
-import express      from 'express'
+import express         from 'express'
 import { createServer } from 'http'
 import { WebSocketServer } from 'ws'
 import { randomBytes, createHash } from 'crypto'
-import https        from 'https'
-import querystring  from 'querystring'
-import path         from 'path'
+import https           from 'https'
+import querystring     from 'querystring'
+import path            from 'path'
 import { fileURLToPath } from 'url'
-import { mkdirSync } from 'fs'
-import { exec } from 'child_process'
-import { promisify } from 'util'
+import { mkdirSync }   from 'fs'
+import fs              from 'fs'
+import { exec }        from 'child_process'
+import { promisify }   from 'util'
+import multer          from 'multer'
+import { v4 as uuidv4 } from 'uuid'
+
 const execAsync = promisify(exec)
 
-import multer      from 'multer'
-import { v4 as uuidv4 } from 'uuid'
-import fs from 'fs'
+// __dirname shim for ES modules — must be defined BEFORE anything that uses it
+const __filename = fileURLToPath(import.meta.url)
+const __dirname  = path.dirname(__filename)
+
+const PORT          = parseInt(process.env.PORT)  || 4000
+const STREAM_SECRET = process.env.STREAM_SECRET   || 'rl-secret-change-me'
+const PAYPAL_EMAIL  = process.env.PAYPAL_EMAIL     || 'josephbennett99@paypal.com'
+const PAYPAL_MODE   = process.env.PAYPAL_MODE      || 'live'
+
+// ── Video DB ──────────────────────────────────────────────────────────────────
 import { initVideoDB, createVideo, listVideos, getVideo, toggleLike, addComment, getComments, getUserLikes } from './videos.js'
 
-// ── Video upload storage ──────────────────────────────────────────────────────
-const VIDEO_DIR = path.join(__dirname, 'data', 'videos')
-try { mkdirSync(VIDEO_DIR, { recursive: true }) } catch {}
+try { mkdirSync(path.join(__dirname, 'data', 'videos'), { recursive: true }) } catch {}
+try { mkdirSync(path.join(__dirname, 'data'), { recursive: true }) } catch {}
 
+initVideoDB()
+
+// ── Multer — video upload storage ─────────────────────────────────────────────
+const VIDEO_DIR = path.join(__dirname, 'data', 'videos')
 const videoStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, VIDEO_DIR),
   filename:    (req, file, cb) => {
@@ -40,22 +55,12 @@ const videoStorage = multer.diskStorage({
 })
 const videoUpload = multer({
   storage: videoStorage,
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
+  limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('video/')) cb(null, true)
     else cb(new Error('Only video files allowed'))
   }
 })
-
-initVideoDB()
-
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-const PORT          = parseInt(process.env.PORT)          || 4000
-const STREAM_SECRET = process.env.STREAM_SECRET           || 'rl-secret-change-me'
-const PAYPAL_EMAIL  = process.env.PAYPAL_EMAIL            || 'josephbennett99@paypal.com'
-const PAYPAL_MODE   = process.env.PAYPAL_MODE             || 'live'   // 'sandbox' for testing
 
 // ── Coin DB ───────────────────────────────────────────────────────────────────
 import {
@@ -83,12 +88,6 @@ app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
 
 // ── Static public assets (icon, favicon, legal pages) ─────────────────────────
-import { fileURLToPath } from 'url'
-import { dirname, join  } from 'path'
-const __filename = fileURLToPath(import.meta.url)
-const __dirname  = dirname(__filename)
-app.use(express.static(join(__dirname, 'public')))
-
 // ── Legal pages ───────────────────────────────────────────────────────────────
 app.get('/privacy', (req, res) =>
   res.sendFile(join(__dirname, 'public', 'privacy.html'))
